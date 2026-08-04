@@ -1,14 +1,13 @@
 {
-  "name": "kds-webhook-receiver",
+  "name": "kds-print-agent",
   "version": "1.0.0",
-  "description": "Receives Wix Restaurants order webhooks and pushes them live to a Kitchen Display System over WebSocket",
-  "main": "server.js",
+  "description": "Runs on a computer inside the kitchen's local network. Connects to the KDS server's live order feed and prints each order to configured Epson/Star receipt printers.",
+  "main": "agent.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node agent.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "ws": "^8.17.0",
-    "jsonwebtoken": "^9.0.2"
+    "node-thermal-printer": "^4.4.4"
   }
 }

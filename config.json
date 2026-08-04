@@ -1,0 +1,18 @@
+{
+  "serverHost": "e-g-kdslokaala-1.onrender.com",
+  "locationId": "PASTE_THIS_LOCATION_ID_FROM_/locations_PAGE",
+  "printers": [
+    {
+      "name": "Epson kitchen printer",
+      "type": "epson",
+      "ip": "192.168.1.50",
+      "port": 9100
+    },
+    {
+      "name": "Star TSP100IV",
+      "type": "star",
+      "ip": "192.168.1.51",
+      "port": 9100
+    }
+  ]
+}

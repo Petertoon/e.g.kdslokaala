@@ -1,92 +1,110 @@
-# KDS Webhook Receiver — Setup Guide
+# KDS Print Agent — Setup Guide
 
-## 1. Figure out which Wix integration you have
+Prints every order to your network receipt printers instead of (or alongside)
+showing it on a screen. It works by connecting to the exact same live order
+feed the on-screen board uses, so it plugs into a location's setup with no
+changes needed on the server.
 
-Wix pushes orders one of two ways. Check your Wix account to see which applies:
+## What you need
 
-- **Wix dashboard → Settings → Restaurants app** — if you see "Wix Restaurants Orders"
-  installed and you were approved as a **POS partner** (this requires applying to
-  Wix as a POS integration), use the `/webhooks/pos-order` endpoint.
-- **dev.wix.com → your registered app** — if you've built/registered a Wix app
-  with the "Read Orders" permission scope, use the `/webhooks/ecom-order` endpoint
-  and subscribe it to the `Order Created` event.
+- A computer that stays on and stays connected to the **same local network**
+  as your printers (a cheap mini-PC or an old laptop tucked in the kitchen
+  works fine — it doesn't need to be powerful)
+- [Node.js](https://nodejs.org) installed on that computer
+- Your printers' IP addresses (see below if you don't know them)
+- Your location's ID from `https://<your-app>.onrender.com/locations`
 
-If neither exists yet, the eCommerce app path is the one to set up today — it's
-self-serve at dev.wix.com, whereas POS partner approval is a manual Wix review.
-Either way, this server handles both, so nothing here needs to change later.
+## 1. Find your printers' IP addresses
 
-## 2. Run it locally
+Both the Epson and Star TSP100IV can print a "network status" or "self-test"
+page directly from the printer (usually by holding a button while powering
+it on, or from a small on-printer menu) — that page shows the current IP
+address. Alternatively, check your router's connected-devices list for
+"EPSON" or "STAR" entries.
+
+Write both IPs down — you'll need them in step 3.
+
+## 2. Install
+
+Copy this whole `print-agent` folder onto the kitchen computer, then in a
+terminal:
 
 ```bash
+cd print-agent
 npm install
-npm start
 ```
 
-This starts the server on port 3000 and prints the webhook URLs and a test
-display page at `http://localhost:3000/kds.html`. Open that page in a browser
-— that's your kitchen monitor for now.
+## 3. Configure
 
-## 3. Expose it to the internet (for testing with real Wix webhooks)
+Open `config.json` and fill in:
 
-Wix needs an HTTPS URL it can reach, so during development tunnel your local
-server with a tool like ngrok:
+```json
+{
+  "serverHost": "e-g-kdslokaala-1.onrender.com",
+  "locationId": "<paste the real ID from /locations here>",
+  "printers": [
+    { "name": "Epson kitchen printer", "type": "epson", "ip": "192.168.1.50", "port": 9100 },
+    { "name": "Star TSP100IV", "type": "star", "ip": "192.168.1.51", "port": 9100 }
+  ]
+}
+```
+
+- `type` must be `"epson"` or `"star"` — this tells the agent which command
+  language to use.
+- `port` is almost always `9100` for both brands (the standard raw-print
+  port) — you shouldn't need to change it unless your printer was
+  specifically configured otherwise.
+- If a location only has one printer, just delete the other entry from the
+  `printers` array.
+
+## 4. Run it
 
 ```bash
-ngrok http 3000
+node agent.js
 ```
 
-Use the `https://...ngrok.io` URL it gives you + `/webhooks/pos-order` or
-`/webhooks/ecom-order` as the webhook URL you register with Wix.
-
-## 4. Simulate an order without waiting on Wix
-
-```bash
-curl -X POST http://localhost:3000/webhooks/pos-order \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "1001",
-    "createdDate": "2026-07-25T18:30:00Z",
-    "comment": "No onions please",
-    "contact": { "name": "Alex" },
-    "lineItems": [
-      { "title": { "en_US": "Margherita Pizza" }, "quantity": 2, "modifiers": [{"title": {"en_US": "Extra cheese"}}] },
-      { "title": { "en_US": "Caesar Salad" }, "quantity": 1 }
-    ]
-  }'
+You should see:
+```
+[agent] KDS print agent starting for location "..."
+[agent] printers configured: Epson kitchen printer, Star TSP100IV
+[agent] connecting to wss://.../kds-stream?location=...
+[agent] connected — waiting for orders
 ```
 
-Watch it appear instantly on `http://localhost:3000/kds.html`.
+Trigger a test order (the **+ TEST TICKET** button on the board works fine
+too, if that location also has a screen open) and confirm both printers
+produce a ticket.
 
-## 5. Multi-location kitchens
+## 5. Keep it running permanently
 
-One webhook receives orders for your **whole site** — Wix tags each order with
-its `locationId`. This server routes each incoming order only to the screens
-watching that location, so you can run a KDS per branch off the same backend.
+Closing the terminal window stops the agent. For real use, keep it running
+in the background and have it auto-start with the computer:
 
-Point each kitchen's monitor at its own location:
-```
-https://your-domain/kds.html?location=<locationId>
-```
-Find each branch's location ID from your Wix dashboard (Business Info →
-location settings) or from the `locationId`/`businessLocationId` field on a
-real incoming order — log one with `console.log(raw)` in the webhook route to
-confirm the exact field name and ID values before wiring up all screens.
+- **Easiest cross-platform option:** install [PM2](https://pm2.keymetrics.io/)
+  ```bash
+  npm install -g pm2
+  pm2 start agent.js --name kds-print-agent
+  pm2 save
+  pm2 startup   # follow the printed instructions to enable auto-start on boot
+  ```
+- **Windows:** PM2 works here too, or use Task Scheduler to run
+  `node agent.js` at login.
+- **Mac:** PM2, or set it up as a `launchd` agent.
 
-An overview screen that shows every location's orders in one place can
-connect with `?location=all` instead.
+## Troubleshooting
 
-## 6. Deploying for real use
-
-For production, move this off localhost onto a real host (Render, Fly.io,
-a small VPS, etc.) with a stable HTTPS domain, and:
-- Set `WIX_WEBHOOK_PUBLIC_KEY` so the eCommerce route verifies JWT signatures
-  instead of just decoding them.
-- Point the kitchen monitor's browser permanently at `https://your-domain/kds.html`
-  (or I can build you a fuller KDS UI — lanes for new/in-progress/done, sound
-  alert on new order, auto-clear on complete, etc.).
-
-## Files
-
-- `server.js` — Express + WebSocket server, receives both webhook shapes
-- `public/kds.html` — minimal live test display
-- `package.json` — dependencies (`express`, `ws`, `jsonwebtoken`)
+- **"FAILED on [printer name]"** in the log — the printer is off, out of
+  paper, or its IP address changed. Network printers can sometimes get a new
+  IP after a router restart; if this starts happening repeatedly, set a
+  **static IP** or a **DHCP reservation** for each printer in your router's
+  settings so the IP never changes.
+- **Star TSP100IV prints garbled text** — Star printers have a couple of
+  different command modes. If `"star"` doesn't print cleanly, it's worth
+  checking the printer's own utility/config page for a "emulation mode" or
+  "command mode" setting and confirming it's set to Star Line Mode (the
+  standard for this model), or trying `"epson"` as the type instead — many
+  Star printers also support ESC/POS emulation.
+- **Nothing prints and no error appears** — double check `locationId`
+  matches exactly what's shown on `/locations`, and that the agent's log
+  shows "connected — waiting for orders" (if it keeps saying
+  "disconnected — retrying," the `serverHost` value is likely wrong).
