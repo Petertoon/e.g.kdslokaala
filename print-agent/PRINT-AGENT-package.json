@@ -1,0 +1,13 @@
+{
+  "name": "kds-print-agent",
+  "version": "1.0.0",
+  "description": "Runs on a computer inside the kitchen's local network. Connects to the KDS server's live order feed and prints each order to configured Epson/Star receipt printers.",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0",
+    "node-thermal-printer": "^4.4.4"
+  }
+}
