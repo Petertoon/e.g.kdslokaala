@@ -1,0 +1,15 @@
+{
+  "name": "kds-webhook-receiver",
+  "version": "1.0.0",
+  "description": "Receives Wix Restaurants order webhooks and pushes them live to a Kitchen Display System over WebSocket",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5"
+  }
+}
