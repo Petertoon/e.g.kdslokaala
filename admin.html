@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Menu Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Arial, sans-serif; background:#f4f4f2; margin:0; padding:20px; color:#22252A; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:#666; font-size:13px; margin-bottom:20px; }
+  .loc-picker { display:flex; gap:8px; margin-bottom:20px; align-items:center; }
+  .loc-picker input { flex:1; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  .loc-picker button { padding:10px 16px; border:none; border-radius:6px; background:#22252A; color:#fff; font-weight:600; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid #eee; font-size:14px; }
+  th { background:#eee; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#555; }
+  .inactive { opacity:0.45; }
+  .actions button { padding:5px 10px; margin-right:6px; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600; }
+  .edit-btn { background:#3B5BA5; color:#fff; }
+  .del-btn { background:#C4462B; color:#fff; }
+  .form-box { background:#fff; border-radius:8px; padding:18px; margin-top:24px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .form-box h2 { font-size:16px; margin-top:0; }
+  .form-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .form-row input, .form-row textarea { padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  .form-row input[type="text"].name { flex:2; min-width:160px; }
+  .form-row input.category { flex:1; min-width:120px; }
+  .form-row input.price { width:100px; }
+  .form-row textarea { width:100%; min-height:50px; }
+  .form-row label { display:flex; align-items:center; gap:6px; font-size:13px; }
+  .save-btn { background:#5B8C5A; color:#fff; border:none; padding:10px 18px; border-radius:6px; font-weight:600; cursor:pointer; }
+  .cancel-btn { background:#ddd; border:none; padding:10px 18px; border-radius:6px; font-weight:600; cursor:pointer; }
+  .msg { font-size:13px; margin-top:8px; }
+  .msg.error { color:#C4462B; }
+  .msg.ok { color:#5B8C5A; }
+</style>
+</head>
+<body>
+  <h1>Menu Admin</h1>
+  <div class="sub">Edit a location's menu — changes apply to the kiosk immediately, no app update needed.</div>
+
+  <div class="loc-picker">
+    <input type="text" id="locationInput" placeholder="Paste location ID (from /locations)" />
+    <button onclick="loadMenu()">Load Menu</button>
+  </div>
+
+  <table id="menuTable" style="display:none;">
+    <thead>
+      <tr><th>Category</th><th>Name</th><th>Price</th><th>Modifiers</th><th>Active</th><th></th></tr>
+    </thead>
+    <tbody id="menuBody"></tbody>
+  </table>
+
+  <div class="form-box">
+    <h2 id="formTitle">Add Item</h2>
+    <div class="form-row">
+      <input type="text" class="category" id="fCategory" placeholder="Category (e.g. Burgers)" />
+      <input type="text" class="name" id="fName" placeholder="Item name" />
+      <input type="text" class="price" id="fPrice" placeholder="Price (e.g. 9.00)" />
+    </div>
+    <div class="form-row">
+      <textarea id="fDescription" placeholder="Description (optional)"></textarea>
+    </div>
+    <div class="form-row">
+      <input type="text" id="fModifiers" placeholder="Modifiers, comma separated (e.g. No onions, Extra cheese, Well done)" style="flex:1;" />
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="fActive" checked /> Active (shows on kiosk)</label>
+    </div>
+    <button class="save-btn" onclick="saveItem()">Save Item</button>
+    <button class="cancel-btn" onclick="resetForm()" id="cancelBtn" style="display:none;">Cancel Edit</button>
+    <div class="msg" id="formMsg"></div>
+  </div>
+
+<script>
+  let currentLocation = null;
+  let editingId = null;
+
+  async function loadMenu() {
+    const loc = document.getElementById("locationInput").value.trim();
+    if (!loc) return;
+    currentLocation = loc;
+    const res = await fetch(`/api/admin/menu/${encodeURIComponent(loc)}`);
+    if (!res.ok) {
+      alert("Could not load menu — check the location ID and try again.");
+      return;
+    }
+    const items = await res.json();
+    renderTable(items);
+  }
+
+  function renderTable(items) {
+    const table = document.getElementById("menuTable");
+    const body = document.getElementById("menuBody");
+    body.innerHTML = "";
+    table.style.display = items.length ? "table" : "none";
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      if (!item.active) tr.className = "inactive";
+      const mods = (item.modifiers || []).join(", ");
+      tr.innerHTML = `
+        <td>${item.category || ""}</td>
+        <td>${item.name}</td>
+        <td>${item.price != null ? "$" + Number(item.price).toFixed(2) : "—"}</td>
+        <td>${mods}</td>
+        <td>${item.active ? "Yes" : "No"}</td>
+        <td class="actions">
+          <button class="edit-btn">Edit</button>
+          <button class="del-btn">Delete</button>
+        </td>
+      `;
+      tr.querySelector(".edit-btn").addEventListener("click", () => editItem(item));
+      tr.querySelector(".del-btn").addEventListener("click", () => deleteItem(item.id));
+      body.appendChild(tr);
+    });
+  }
+
+  function editItem(item) {
+    editingId = item.id;
+    document.getElementById("formTitle").textContent = `Editing: ${item.name}`;
+    document.getElementById("fCategory").value = item.category || "";
+    document.getElementById("fName").value = item.name || "";
+    document.getElementById("fPrice").value = item.price != null ? item.price : "";
+    document.getElementById("fDescription").value = item.description || "";
+    document.getElementById("fModifiers").value = (item.modifiers || []).join(", ");
+    document.getElementById("fActive").checked = item.active;
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    editingId = null;
+    document.getElementById("formTitle").textContent = "Add Item";
+    document.getElementById("fCategory").value = "";
+    document.getElementById("fName").value = "";
+    document.getElementById("fPrice").value = "";
+    document.getElementById("fDescription").value = "";
+    document.getElementById("fModifiers").value = "";
+    document.getElementById("fActive").checked = true;
+    document.getElementById("cancelBtn").style.display = "none";
+    document.getElementById("formMsg").textContent = "";
+  }
+
+  async function saveItem() {
+    if (!currentLocation) {
+      showMsg("Load a menu first (paste a location ID above).", true);
+      return;
+    }
+    const body = {
+      category: document.getElementById("fCategory").value.trim() || "Menu",
+      name: document.getElementById("fName").value.trim(),
+      price: document.getElementById("fPrice").value ? Number(document.getElementById("fPrice").value) : null,
+      description: document.getElementById("fDescription").value.trim() || null,
+      modifiers: document.getElementById("fModifiers").value
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean),
+      active: document.getElementById("fActive").checked,
+    };
+    if (!body.name) {
+      showMsg("Item name is required.", true);
+      return;
+    }
+
+    const url = editingId ? `/api/admin/menu/item/${editingId}` : `/api/admin/menu/${encodeURIComponent(currentLocation)}`;
+    const method = editingId ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      showMsg("Save failed — try again.", true);
+      return;
+    }
+    showMsg(editingId ? "Item updated." : "Item added.", false);
+    resetForm();
+    loadMenu();
+  }
+
+  async function deleteItem(id) {
+    if (!confirm("Delete this menu item?")) return;
+    await fetch(`/api/admin/menu/item/${id}`, { method: "DELETE" });
+    loadMenu();
+  }
+
+  function showMsg(text, isError) {
+    const el = document.getElementById("formMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+</script>
+</body>
+</html>
