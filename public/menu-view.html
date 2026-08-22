@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Our Menu</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    height: 100vh; height: 100dvh; background: #14171A; color: #EDEAE2;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .center-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; }
+  .center-screen .emoji { font-size: 56px; margin-bottom: 18px; }
+  .center-screen h1 { font-size: 22px; margin-bottom: 10px; }
+  .center-screen p { color: #8a8f96; font-size: 15px; line-height: 1.5; max-width: 340px; }
+
+  .order-header {
+    padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #2a2e33;
+  }
+  .order-header .title { font-size: 17px; font-weight: 700; }
+  .order-header .sub { font-size: 12px; color: #8a8f96; margin-top: 2px; }
+
+  .tabs {
+    display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto; border-bottom: 1px solid #2a2e33;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 9px 14px;
+    border-radius: 9px; background: #1c2024; border: 1px solid #2a2e33; cursor: pointer;
+    font-size: 14px; font-weight: 600; color: #b8bcc2; white-space: nowrap;
+  }
+  .tab.active { color: #7CC24A; border-color: #7CC24A; background: #1c2620; }
+  .icon-img { width: 18px; height: 18px; border-radius: 4px; background-size: cover; background-position: center; display: inline-block; }
+
+  .menu-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 16px 24px; }
+  .category-heading { font-size: 12px; letter-spacing: 2px; color: #D4A62A; font-weight: 700; margin: 4px 0 12px; text-transform: uppercase; }
+  .item-card {
+    background: #1c2024; border: 1px solid #2a2e33; border-radius: 12px; overflow: hidden;
+    margin-bottom: 12px; display: flex; align-items: stretch; min-height: 84px;
+  }
+  .item-img {
+    width: 96px; flex: 0 0 96px; background-size: cover; background-position: center;
+    display: flex; align-items: center; justify-content: center; font-size: 28px;
+  }
+  .item-body { flex: 1; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .item-name { font-size: 15px; font-weight: 700; }
+  .item-desc { font-size: 12px; color: #8a8f96; margin-top: 3px; }
+  .item-price { font-size: 15px; font-weight: 700; color: #7CC24A; white-space: nowrap; }
+  .empty-note { text-align: center; color: #6b6f75; padding: 60px 20px; font-size: 14px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+  <!-- Checking network -->
+  <div class="center-screen" id="checkingScreen">
+    <div class="emoji">📶</div>
+    <p>Checking connection…</p>
+  </div>
+
+  <!-- Blocked: not on the restaurant's WiFi -->
+  <div class="center-screen" id="blockedScreen" style="display:none;">
+    <div class="emoji">🔒</div>
+    <h1>Connect to WiFi to view the menu</h1>
+    <p>Our menu is only viewable while connected to the restaurant's WiFi network. Please join it and reload this page.</p>
+  </div>
+
+  <!-- Read-only menu -->
+  <div class="screen" id="menuScreen" style="display:none;">
+    <div class="order-header">
+      <div>
+        <div class="title">Our Menu</div>
+        <div class="sub">Order with your server or at the counter</div>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="menu-list" id="menuList"></div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const locationId = params.get("location");
+
+  let menu = [];
+  let categories = [];
+  let activeCategory = null;
+  let categoryIcons = {};
+
+  const CATEGORY_KEYWORDS = [
+    ["burger", "🍔"], ["sandwich", "🥪"], ["steak", "🥩"], ["beef", "🥩"],
+    ["chicken", "🍗"], ["wing", "🍗"], ["mexican", "🌮"], ["taco", "🌮"], ["burrito", "🌯"],
+    ["appetizer", "🍤"], ["starter", "🍤"], ["seafood", "🦐"], ["shrimp", "🦐"], ["fish", "🐟"],
+    ["soup", "🍲"], ["salad", "🥗"], ["pizza", "🍕"], ["pasta", "🍝"], ["noodle", "🍜"],
+    ["drink", "🥤"], ["beverage", "🥤"], ["coffee", "☕"], ["dessert", "🍰"], ["sweet", "🍰"],
+    ["breakfast", "🍳"], ["egg", "🍳"], ["side", "🍟"], ["fries", "🍟"], ["bread", "🍞"],
+    ["sushi", "🍣"], ["bbq", "🍖"], ["barbecue", "🍖"], ["vegan", "🥦"], ["vegetarian", "🥦"],
+    ["kid", "🧒"],
+  ];
+  function guessIcon(category) {
+    const c = (category || "").trim().toLowerCase();
+    const hit = CATEGORY_KEYWORDS.find(([kw]) => c.includes(kw));
+    return hit ? hit[1] : "🍽️";
+  }
+  function iconFor(category) {
+    const custom = categoryIcons[category];
+    if (custom) return /^https?:\/\//i.test(custom) ? { imageUrl: custom } : { emoji: custom };
+    return { emoji: guessIcon(category) };
+  }
+  function iconHtml(category) {
+    const icon = iconFor(category);
+    return icon.imageUrl
+      ? `<span class="icon-img" style="background-image:url('${icon.imageUrl}')"></span>`
+      : `<span>${icon.emoji}</span>`;
+  }
+
+  // ---------------- Startup: network check ----------------
+  if (!locationId) {
+    document.getElementById("checkingScreen").style.display = "none";
+    document.getElementById("blockedScreen").style.display = "flex";
+    document.querySelector("#blockedScreen h1").textContent = "No location set";
+    document.querySelector("#blockedScreen p").textContent = "This link is missing its location. Please ask staff for the correct QR code.";
+  } else {
+    checkNetwork();
+  }
+
+  async function checkNetwork() {
+    try {
+      const res = await fetch(`/api/table-order-check/${encodeURIComponent(locationId)}`);
+      const data = await res.json();
+      document.getElementById("checkingScreen").style.display = "none";
+      if (!data.allowed) {
+        document.getElementById("blockedScreen").style.display = "flex";
+      } else {
+        document.getElementById("menuScreen").style.display = "flex";
+        await loadCategoryIcons();
+        await loadMenu();
+      }
+    } catch (err) {
+      document.getElementById("checkingScreen").style.display = "none";
+      document.getElementById("blockedScreen").style.display = "flex";
+    }
+  }
+
+  async function loadCategoryIcons() {
+    try {
+      const res = await fetch(`/api/category-icons/${encodeURIComponent(locationId)}`);
+      if (res.ok) categoryIcons = await res.json();
+    } catch (err) {
+      // keep keyword-guess icons
+    }
+  }
+
+  // ---------------- Menu ----------------
+  async function loadMenu() {
+    try {
+      const res = await fetch(`/api/menu/${encodeURIComponent(locationId)}`);
+      menu = await res.json();
+      categories = [...new Set(menu.map((m) => m.category || "Menu"))];
+      activeCategory = categories[0] || null;
+      renderTabs();
+      renderMenu();
+    } catch (err) {
+      document.getElementById("menuList").innerHTML = '<div class="empty-note">Could not load the menu. Please tell staff.</div>';
+    }
+  }
+
+  function renderTabs() {
+    const tabsEl = document.getElementById("tabs");
+    if (!categories.length) { tabsEl.innerHTML = ""; return; }
+    tabsEl.innerHTML = categories.map((cat) => `
+      <div class="tab ${cat === activeCategory ? "active" : ""}" data-cat="${cat}">${iconHtml(cat)}<span>${cat}</span></div>
+    `).join("");
+    tabsEl.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => { activeCategory = tab.dataset.cat; renderTabs(); renderMenu(); });
+    });
+  }
+
+  function splitModifiers(mods) {
+    const included = [];
+    const addons = [];
+    (mods || []).forEach((m) => {
+      if (typeof m === "string") addons.push(m);
+      else if (m && m.type === "included") included.push(m.name);
+      else if (m && m.name) addons.push(m.name);
+    });
+    return { included, addons };
+  }
+
+  function renderMenu() {
+    const listEl = document.getElementById("menuList");
+    if (!menu.length) {
+      listEl.innerHTML = '<div class="empty-note">No menu items yet for this location.</div>';
+      return;
+    }
+    const items = menu.filter((m) => (m.category || "Menu") === activeCategory);
+    listEl.innerHTML = `
+      <div class="category-heading">${activeCategory}</div>
+      ${items.map((item) => {
+        const icon = iconFor(item.category);
+        const imgStyle = item.imageUrl
+          ? `background-image:url('${item.imageUrl}')`
+          : icon.imageUrl ? `background-image:url('${icon.imageUrl}')` : "background:#22252A;";
+        const { included, addons } = splitModifiers(item.modifiers);
+        const modsLines = [
+          included.length ? `<div><b>Comes with:</b> ${included.join(", ")}</div>` : "",
+          addons.length ? `<div><b>Add extra:</b> ${addons.join(", ")}</div>` : "",
+        ].filter(Boolean).join("");
+        return `
+        <div class="item-card">
+          <div class="item-img" style="${imgStyle}">${(item.imageUrl || icon.imageUrl) ? "" : icon.emoji}</div>
+          <div class="item-body">
+            <div>
+              <div class="item-name">${item.name}</div>
+              ${item.description ? `<div class="item-desc">${item.description}</div>` : ""}
+              ${modsLines ? `<div class="item-desc" style="margin-top:6px; line-height:1.5;">${modsLines}</div>` : ""}
+            </div>
+            ${item.price != null ? `<div class="item-price">$${Number(item.price).toFixed(2)}</div>` : ""}
+          </div>
+        </div>`;
+      }).join("")}
+    `;
+  }
+</script>
+</body>
+</html>
