@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Menu Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Arial, sans-serif; background:#f4f4f2; margin:0; padding:20px; color:#22252A; }
+  h1 { font-size:20px; margin-bottom:4px; }
+  .sub { color:#666; font-size:13px; margin-bottom:20px; }
+  .loc-picker { display:flex; gap:8px; margin-bottom:20px; align-items:center; }
+  .loc-picker input { flex:1; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  .loc-picker button { padding:10px 16px; border:none; border-radius:6px; background:#22252A; color:#fff; font-weight:600; cursor:pointer; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid #eee; font-size:14px; }
+  th { background:#eee; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#555; }
+  .inactive { opacity:0.45; }
+  .actions button { padding:5px 10px; margin-right:6px; border:none; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600; }
+  .edit-btn { background:#3B5BA5; color:#fff; }
+  .del-btn { background:#C4462B; color:#fff; }
+  .form-box { background:#fff; border-radius:8px; padding:18px; margin-top:24px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .form-box h2 { font-size:16px; margin-top:0; }
+  .form-row { display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+  .form-row input, .form-row textarea { padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+  .form-row input[type="text"].name { flex:2; min-width:160px; }
+  .form-row input.category { flex:1; min-width:120px; }
+  .form-row input.price { width:100px; }
+  .form-row textarea { width:100%; min-height:50px; }
+  .form-row label { display:flex; align-items:center; gap:6px; font-size:13px; }
+  .save-btn { background:#5B8C5A; color:#fff; border:none; padding:10px 18px; border-radius:6px; font-weight:600; cursor:pointer; }
+  .cancel-btn { background:#ddd; border:none; padding:10px 18px; border-radius:6px; font-weight:600; cursor:pointer; }
+  .msg { font-size:13px; margin-top:8px; }
+  .msg.error { color:#C4462B; }
+  .msg.ok { color:#5B8C5A; }
+  .section-title { font-size:18px; margin-top:36px; margin-bottom:6px; }
+  .section-sub { color:#666; font-size:13px; margin-bottom:14px; }
+  .ad-list { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+  .ad-row { display:flex; align-items:center; gap:12px; background:#fff; border-radius:8px; padding:10px 14px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .ad-row img { width:60px; height:40px; object-fit:cover; border-radius:4px; background:#eee; }
+  .ad-row .info { flex:1; font-size:13px; }
+  .ad-row .info .url { color:#888; word-break:break-all; }
+  .settings-row { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; }
+  .settings-row .field { display:flex; flex-direction:column; gap:4px; }
+  .settings-row label { font-size:12px; color:#666; font-weight:600; }
+  .settings-row input { padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; width:140px; }
+  .modifier-group { margin: 16px 0; }
+  .modifier-group-title { font-weight:700; font-size:14px; }
+  .modifier-group-sub { font-size:12px; color:#777; margin-bottom:8px; }
+  .modifier-row { display:flex; gap:8px; margin-bottom:6px; }
+  .modifier-row input { flex:1; padding:8px; border:1px solid #ccc; border-radius:6px; font-size:13px; }
+  .remove-row-btn { background:#eee; border:none; border-radius:6px; padding:0 12px; cursor:pointer; color:#888; font-weight:700; }
+  .add-row-btn { background:none; border:1px dashed #bbb; border-radius:6px; padding:6px 14px; font-size:12px; cursor:pointer; color:#555; }
+  .network-list { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+  .network-row { display:flex; align-items:center; gap:12px; background:#fff; border-radius:8px; padding:10px 14px; box-shadow:0 1px 3px rgba(0,0,0,0.1); font-size:13px; }
+  .network-row .ip { font-weight:700; font-family:monospace; }
+  .network-row .label { flex:1; color:#777; }
+  .category-ad-row { background:#fff; border-radius:8px; padding:14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .category-ad-row .cat-name { font-weight:700; font-size:14px; margin-bottom:8px; }
+  .category-ad-row .ad-fields { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .category-ad-row .ad-fields input, .category-ad-row .ad-fields textarea { padding:8px; border:1px solid #ccc; border-radius:6px; font-size:13px; flex:1; min-width:140px; }
+  .category-ad-row .ad-fields textarea { width:100%; min-height:40px; flex-basis:100%; }
+  .category-ad-row .row-actions { display:flex; gap:8px; }
+  .category-ad-row .row-actions button { padding:8px 14px; font-size:12px; }
+  .template-picker { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:10px; font-size:13px; }
+  .template-picker label { display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .register-btn { background:#3B5BA5; color:#fff; border:none; border-radius:6px; padding:10px 16px; font-weight:600; font-size:13px; cursor:pointer; margin-right:8px; }
+  .qr-box { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+  .qr-link-box { flex:1; min-width:240px; }
+  .qr-link-box input { width:100%; padding:9px; border:1px solid #ccc; border-radius:6px; font-size:13px; font-family:monospace; margin-bottom:8px; }
+</style>
+</head>
+<body>
+  <h1>Menu Admin</h1>
+  <div class="sub">Edit a location's menu — changes apply to the kiosk immediately, no app update needed.</div>
+
+  <div class="loc-picker">
+    <input type="text" id="locationInput" placeholder="Paste location ID (from /locations)" />
+    <button onclick="loadMenu()">Load Menu</button>
+  </div>
+
+  <div class="form-box" id="orderingToggleBox" style="display:none;">
+    <label style="display:flex; align-items:center; gap:10px; font-size:15px; font-weight:600; cursor:pointer;">
+      <input type="checkbox" id="fOrderingEnabled" checked onchange="saveOrderingEnabled()" />
+      Enable ordering for this location
+    </label>
+    <div class="section-sub" style="margin-top:6px;">
+      Off for menu-viewing-only locations with no KDS or printer — the Add to Order / cart buttons disappear from the kiosk and table-order pages, leaving just the menu to browse. Nothing about the menu itself changes.
+    </div>
+    <div class="msg" id="orderingToggleMsg"></div>
+  </div>
+
+  <table id="menuTable" style="display:none;">
+    <thead>
+      <tr><th>Photo</th><th>Category</th><th>Name</th><th>Price</th><th>Modifiers</th><th>Active</th><th></th></tr>
+    </thead>
+    <tbody id="menuBody"></tbody>
+  </table>
+
+  <div class="form-box">
+    <h2 id="formTitle">Add Item</h2>
+    <div class="form-row">
+      <input type="text" class="category" id="fCategory" placeholder="Category (e.g. Burgers)" />
+      <input type="text" class="name" id="fName" placeholder="Item name" />
+      <input type="text" class="price" id="fPrice" placeholder="Price (e.g. 9.00)" />
+    </div>
+    <div class="form-row">
+      <textarea id="fDescription" placeholder="Description (optional)"></textarea>
+    </div>
+    <div class="form-row">
+      <input type="text" id="fImageUrl" placeholder="Photo URL (optional — shows on the kiosk item card)" style="flex:1;" />
+    </div>
+
+    <div class="modifier-group">
+      <div class="modifier-group-title">Comes With (removable at order time)</div>
+      <div class="modifier-group-sub">Default ingredients — the customer can tap to remove any of these on the kiosk.</div>
+      <div id="includedRows"></div>
+      <button type="button" class="add-row-btn" onclick="addModifierRow('included')">+ Add another</button>
+    </div>
+
+    <div class="modifier-group">
+      <div class="modifier-group-title">Add-Ons (optional extras)</div>
+      <div class="modifier-group-sub">Not included by default — the customer can tap to add any of these, e.g. special sauces.</div>
+      <div id="addonRows"></div>
+      <button type="button" class="add-row-btn" onclick="addModifierRow('addon')">+ Add another</button>
+    </div>
+
+    <div class="form-row">
+      <label><input type="checkbox" id="fActive" checked /> Active (shows on kiosk)</label>
+    </div>
+    <button class="save-btn" onclick="saveItem()">Save Item</button>
+    <button class="cancel-btn" onclick="resetForm()" id="cancelBtn" style="display:none;">Cancel Edit</button>
+    <div class="msg" id="formMsg"></div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Category Icons</div>
+    <div class="section-sub">Set a custom icon for each category tab on the kiosk — paste an emoji (🍔) or an image URL. Categories with nothing set here use a reasonable automatic guess.</div>
+    <div id="categoryIconList"></div>
+    <div class="msg" id="categoryIconMsg"></div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Category Ads (Table Order Banner)</div>
+    <div class="section-sub">A promotional banner at the top of the table-order page that swaps out per category — leave a category's fields blank to show no banner for it.</div>
+    <div id="categoryAdList"></div>
+    <div class="msg" id="categoryAdMsg"></div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Idle-Screen Ads</div>
+    <div class="section-sub">Shown as a full-screen slideshow when the kiosk sits untouched (see timing below). Leave empty to use built-in placeholder slides.</div>
+    <div class="ad-list" id="adList"></div>
+    <div class="form-row">
+      <input type="text" id="fAdImageUrl" placeholder="Ad image URL" style="flex:2; min-width:200px;" />
+      <input type="text" id="fAdCaption" placeholder="Caption (optional)" style="flex:1; min-width:140px;" />
+    </div>
+    <button class="save-btn" onclick="addAd()">Add Ad Slide</button>
+    <div class="msg" id="adMsg"></div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Kiosk Timing</div>
+    <div class="section-sub">How long the kiosk waits with no touches before showing ads, and how long each ad slide stays up.</div>
+    <div class="settings-row">
+      <div class="field">
+        <label>Idle trigger (seconds)</label>
+        <input type="number" id="sIdleTimeout" min="5" value="60" />
+      </div>
+      <div class="field">
+        <label>Seconds per ad slide</label>
+        <input type="number" id="sAdInterval" min="3" value="325" />
+      </div>
+      <button class="save-btn" onclick="saveSettings()">Save Timing</button>
+    </div>
+    <div class="msg" id="settingsMsg"></div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Header Button (Table Order Page)</div>
+    <div class="section-sub">A round button in the top-right corner of the table-order page — set a picture and it links out to any URL (your Instagram, review page, online store, etc). Leave blank to hide it.</div>
+    <div class="form-row">
+      <input type="text" id="fHeaderButtonImage" placeholder="Picture URL" style="flex:1;" />
+      <input type="text" id="fHeaderButtonLink" placeholder="Link URL (e.g. https://instagram.com/yourplace)" style="flex:1;" />
+    </div>
+    <button class="save-btn" onclick="saveHeaderButton()">Save Header Button</button>
+    <div class="msg" id="headerButtonMsg"></div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Menu Viewing — QR Code</div>
+    <div class="section-sub">Read-only menu, no ordering — a customer scans this to browse the menu on their phone, then orders through your server or at the counter. Same approved-WiFi restriction as table ordering, below.</div>
+    <div class="qr-box">
+      <div id="qrMenuViewContainer"></div>
+      <div class="qr-link-box">
+        <label style="font-size:12px; color:#666; font-weight:600; display:block; margin-bottom:6px;">Direct link</label>
+        <input type="text" id="qrMenuViewLinkText" readonly />
+        <button class="save-btn" onclick="copyMenuViewLink()">Copy Link</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Table Ordering — QR Code</div>
+    <div class="section-sub">One QR code works for the whole location — customers scan it, then enter their own table number and name before ordering. Print this and place it on every table.</div>
+    <div class="qr-box">
+      <div id="qrCodeContainer"></div>
+      <div class="qr-link-box">
+        <label style="font-size:12px; color:#666; font-weight:600; display:block; margin-bottom:6px;">Direct link</label>
+        <input type="text" id="qrLinkText" readonly />
+        <button class="save-btn" onclick="copyQrLink()">Copy Link</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-box">
+    <div class="section-title" style="margin-top:0;">Table Ordering — Approved WiFi</div>
+    <div class="section-sub">Table ordering only works for devices on one of these approved networks. With none listed, it's open to anyone with the link — add at least one before relying on this for real service.</div>
+    <div class="network-list" id="networkList"></div>
+    <button class="register-btn" onclick="registerCurrentNetwork()">📶 Register This Network (use while on the restaurant WiFi)</button>
+    <div class="form-row" style="margin-top:14px;">
+      <input type="text" id="fNetworkIp" placeholder="IP address (if you already know it)" style="flex:1;" />
+      <input type="text" id="fNetworkLabel" placeholder="Label (optional, e.g. Main WiFi)" style="flex:1;" />
+    </div>
+    <button class="save-btn" onclick="addNetworkManually()">Add Manually</button>
+    <div class="msg" id="networkMsg"></div>
+  </div>
+
+<script>
+  let currentLocation = null;
+  let editingId = null;
+  let lastLoadedItems = [];
+
+  // ---------------- Structured modifiers: "Comes With" (removable) + "Add-Ons" ----------------
+  function makeModifierRow(containerId, value) {
+    const row = document.createElement("div");
+    row.className = "modifier-row";
+    row.innerHTML = `
+      <input type="text" value="${(value || "").replace(/"/g, "&quot;")}" placeholder="e.g. ${containerId === "includedRows" ? "Cheese" : "Chipotle Sauce"}" />
+      <button type="button" class="remove-row-btn" onclick="this.parentElement.remove()">✕</button>
+    `;
+    document.getElementById(containerId).appendChild(row);
+  }
+
+  function addModifierRow(type) {
+    makeModifierRow(type === "included" ? "includedRows" : "addonRows", "");
+  }
+
+  function initModifierRows(includedValues, addonValues) {
+    document.getElementById("includedRows").innerHTML = "";
+    document.getElementById("addonRows").innerHTML = "";
+    const included = includedValues && includedValues.length ? includedValues : ["", "", "", "", ""];
+    const addons = addonValues && addonValues.length ? addonValues : ["", "", "", "", ""];
+    included.forEach((v) => makeModifierRow("includedRows", v));
+    addons.forEach((v) => makeModifierRow("addonRows", v));
+  }
+
+  function collectModifiers() {
+    const included = [...document.querySelectorAll("#includedRows input")]
+      .map((i) => i.value.trim())
+      .filter(Boolean)
+      .map((name) => ({ name, type: "included" }));
+    const addons = [...document.querySelectorAll("#addonRows input")]
+      .map((i) => i.value.trim())
+      .filter(Boolean)
+      .map((name) => ({ name, type: "addon" }));
+    return [...included, ...addons];
+  }
+
+  // Splits a stored modifiers array (new {name,type} objects, or legacy
+  // plain strings from before this feature) into the two admin groups.
+  function splitModifiersForEdit(mods) {
+    const included = [];
+    const addons = [];
+    (mods || []).forEach((m) => {
+      if (typeof m === "string") addons.push(m); // legacy — treat as an add-on
+      else if (m && m.type === "included") included.push(m.name);
+      else if (m && m.name) addons.push(m.name);
+    });
+    return { included, addons };
+  }
+
+  initModifierRows(); // start the Add Item form with 5 empty rows in each group
+
+  async function loadMenu() {
+    const loc = document.getElementById("locationInput").value.trim();
+    if (!loc) return;
+    currentLocation = loc;
+    const res = await fetch(`/api/admin/menu/${encodeURIComponent(loc)}`);
+    if (!res.ok) {
+      alert("Could not load menu — check the location ID and try again.");
+      return;
+    }
+    const items = await res.json();
+    lastLoadedItems = items;
+    renderTable(items);
+    loadAds();
+    loadSettings();
+    loadCategoryIcons(items);
+    loadCategoryAdsAdmin(items);
+    renderTableQr();
+    renderMenuViewQr();
+    loadNetworks();
+  }
+
+  function renderTable(items) {
+    const table = document.getElementById("menuTable");
+    const body = document.getElementById("menuBody");
+    body.innerHTML = "";
+    table.style.display = items.length ? "table" : "none";
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      if (!item.active) tr.className = "inactive";
+      const { included, addons } = splitModifiersForEdit(item.modifiers);
+      const modsSummary = [
+        included.length ? `Comes with: ${included.join(", ")}` : "",
+        addons.length ? `Add-ons: ${addons.join(", ")}` : "",
+      ].filter(Boolean).join(" · ") || "—";
+      tr.innerHTML = `
+        <td>${item.image_url ? `<img src="${item.image_url}" alt="" style="width:50px;height:36px;object-fit:cover;border-radius:4px;">` : "—"}</td>
+        <td>${item.category || ""}</td>
+        <td>${item.name}</td>
+        <td>${item.price != null ? "$" + Number(item.price).toFixed(2) : "—"}</td>
+        <td>${modsSummary}</td>
+        <td>${item.active ? "Yes" : "No"}</td>
+        <td class="actions">
+          <button class="edit-btn">Edit</button>
+          <button class="del-btn">Delete</button>
+        </td>
+      `;
+      tr.querySelector(".edit-btn").addEventListener("click", () => editItem(item));
+      tr.querySelector(".del-btn").addEventListener("click", () => deleteItem(item.id));
+      body.appendChild(tr);
+    });
+  }
+
+  function editItem(item) {
+    editingId = item.id;
+    document.getElementById("formTitle").textContent = `Editing: ${item.name}`;
+    document.getElementById("fCategory").value = item.category || "";
+    document.getElementById("fName").value = item.name || "";
+    document.getElementById("fPrice").value = item.price != null ? item.price : "";
+    document.getElementById("fDescription").value = item.description || "";
+    const { included, addons } = splitModifiersForEdit(item.modifiers);
+    initModifierRows(included, addons);
+    document.getElementById("fImageUrl").value = item.image_url || "";
+    document.getElementById("fActive").checked = item.active;
+    document.getElementById("cancelBtn").style.display = "inline-block";
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    editingId = null;
+    document.getElementById("formTitle").textContent = "Add Item";
+    document.getElementById("fCategory").value = "";
+    document.getElementById("fName").value = "";
+    document.getElementById("fPrice").value = "";
+    document.getElementById("fDescription").value = "";
+    initModifierRows();
+    document.getElementById("fImageUrl").value = "";
+    document.getElementById("fActive").checked = true;
+    document.getElementById("cancelBtn").style.display = "none";
+    document.getElementById("formMsg").textContent = "";
+  }
+
+  async function saveItem() {
+    if (!currentLocation) {
+      showMsg("Load a menu first (paste a location ID above).", true);
+      return;
+    }
+    const body = {
+      category: document.getElementById("fCategory").value.trim() || "Menu",
+      name: document.getElementById("fName").value.trim(),
+      price: document.getElementById("fPrice").value ? Number(document.getElementById("fPrice").value) : null,
+      description: document.getElementById("fDescription").value.trim() || null,
+      modifiers: collectModifiers(),
+      imageUrl: document.getElementById("fImageUrl").value.trim() || null,
+      active: document.getElementById("fActive").checked,
+    };
+    if (!body.name) {
+      showMsg("Item name is required.", true);
+      return;
+    }
+
+    const url = editingId ? `/api/admin/menu/item/${editingId}` : `/api/admin/menu/${encodeURIComponent(currentLocation)}`;
+    const method = editingId ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      showMsg("Save failed — try again.", true);
+      return;
+    }
+    showMsg(editingId ? "Item updated." : "Item added.", false);
+    resetForm();
+    loadMenu();
+  }
+
+  async function deleteItem(id) {
+    if (!confirm("Delete this menu item?")) return;
+    await fetch(`/api/admin/menu/item/${id}`, { method: "DELETE" });
+    loadMenu();
+  }
+
+  function showMsg(text, isError) {
+    const el = document.getElementById("formMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+
+  // ---------------- Idle-screen ads ----------------
+  async function loadAds() {
+    if (!currentLocation) return;
+    const res = await fetch(`/api/admin/kiosk-ads/${encodeURIComponent(currentLocation)}`);
+    if (!res.ok) return; // DB not ready yet — leave the list empty rather than erroring
+    renderAdList(await res.json());
+  }
+
+  function renderAdList(ads) {
+    const list = document.getElementById("adList");
+    if (!ads.length) {
+      list.innerHTML = '<div class="section-sub" style="margin:0;">No ad slides yet — the kiosk will show built-in placeholder slides until you add some.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    ads.forEach((ad) => {
+      const row = document.createElement("div");
+      row.className = "ad-row";
+      row.innerHTML = `
+        <img src="${ad.image_url}" alt="" />
+        <div class="info">
+          <div>${ad.caption || "(no caption)"}</div>
+          <div class="url">${ad.image_url}</div>
+        </div>
+        <button class="del-btn">Delete</button>
+      `;
+      row.querySelector(".del-btn").addEventListener("click", () => deleteAd(ad.id));
+      list.appendChild(row);
+    });
+  }
+
+  async function addAd() {
+    if (!currentLocation) {
+      showAdMsg("Load a location first.", true);
+      return;
+    }
+    const imageUrl = document.getElementById("fAdImageUrl").value.trim();
+    const caption = document.getElementById("fAdCaption").value.trim() || null;
+    if (!imageUrl) {
+      showAdMsg("Image URL is required.", true);
+      return;
+    }
+    const res = await fetch(`/api/admin/kiosk-ads/${encodeURIComponent(currentLocation)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl, caption }),
+    });
+    if (!res.ok) {
+      showAdMsg("Could not add ad slide — try again.", true);
+      return;
+    }
+    document.getElementById("fAdImageUrl").value = "";
+    document.getElementById("fAdCaption").value = "";
+    showAdMsg("Ad slide added.", false);
+    loadAds();
+  }
+
+  async function deleteAd(id) {
+    if (!confirm("Delete this ad slide?")) return;
+    await fetch(`/api/admin/kiosk-ads/item/${id}`, { method: "DELETE" });
+    loadAds();
+  }
+
+  function showAdMsg(text, isError) {
+    const el = document.getElementById("adMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+
+  // ---------------- Kiosk timing settings ----------------
+  async function loadSettings() {
+    if (!currentLocation) return;
+    const res = await fetch(`/api/admin/kiosk-settings/${encodeURIComponent(currentLocation)}`);
+    if (!res.ok) return;
+    const s = await res.json();
+    document.getElementById("sIdleTimeout").value = s.idle_timeout_seconds || 60;
+    document.getElementById("sAdInterval").value = s.ad_interval_seconds || 325;
+    document.getElementById("fHeaderButtonImage").value = s.header_button_image_url || "";
+    document.getElementById("fHeaderButtonLink").value = s.header_button_link_url || "";
+    document.getElementById("fOrderingEnabled").checked = s.ordering_enabled !== false;
+    document.getElementById("orderingToggleBox").style.display = "block";
+  }
+
+  async function saveSettings() {
+    if (!currentLocation) {
+      showSettingsMsg("Load a location first.", true);
+      return;
+    }
+    const idleTimeoutSeconds = Number(document.getElementById("sIdleTimeout").value) || 60;
+    const adIntervalSeconds = Number(document.getElementById("sAdInterval").value) || 325;
+    const res = await fetch(`/api/admin/kiosk-settings/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idleTimeoutSeconds, adIntervalSeconds }),
+    });
+    if (!res.ok) {
+      showSettingsMsg("Could not save timing — try again.", true);
+      return;
+    }
+    showSettingsMsg("Timing saved.", false);
+  }
+
+  async function saveHeaderButton() {
+    if (!currentLocation) {
+      showHeaderButtonMsg("Load a location first.", true);
+      return;
+    }
+    const headerButtonImageUrl = document.getElementById("fHeaderButtonImage").value.trim() || null;
+    const headerButtonLinkUrl = document.getElementById("fHeaderButtonLink").value.trim() || null;
+    const res = await fetch(`/api/admin/kiosk-settings/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ headerButtonImageUrl, headerButtonLinkUrl }),
+    });
+    showHeaderButtonMsg(res.ok ? "Header button saved." : "Could not save — try again.", !res.ok);
+  }
+
+  function showHeaderButtonMsg(text, isError) {
+    const el = document.getElementById("headerButtonMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+
+  async function saveOrderingEnabled() {
+    if (!currentLocation) return;
+    const orderingEnabled = document.getElementById("fOrderingEnabled").checked;
+    const res = await fetch(`/api/admin/kiosk-settings/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderingEnabled }),
+    });
+    const el = document.getElementById("orderingToggleMsg");
+    if (res.ok) {
+      el.textContent = orderingEnabled ? "Ordering enabled." : "Ordering disabled — kiosk and table-order pages now show menu only.";
+      el.className = "msg ok";
+    } else {
+      el.textContent = "Could not save — try again.";
+      el.className = "msg error";
+    }
+  }
+
+  function showSettingsMsg(text, isError) {
+    const el = document.getElementById("settingsMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+
+  // ---------------- Category icons ----------------
+  async function loadCategoryIcons(items) {
+    if (!currentLocation) return;
+    const categories = [...new Set(items.map((i) => i.category || "Menu"))];
+    const res = await fetch(`/api/admin/category-icons/${encodeURIComponent(currentLocation)}`);
+    const saved = res.ok ? await res.json() : [];
+    const savedMap = {};
+    saved.forEach((row) => (savedMap[row.category] = row.icon));
+    renderCategoryIconList(categories, savedMap);
+  }
+
+  function renderCategoryIconList(categories, savedMap) {
+    const list = document.getElementById("categoryIconList");
+    if (!categories.length) {
+      list.innerHTML = '<div class="section-sub" style="margin:0;">Add menu items first — categories will show up here.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    categories.forEach((cat) => {
+      const row = document.createElement("div");
+      row.className = "form-row";
+      row.style.alignItems = "center";
+      row.innerHTML = `
+        <div style="flex:0 0 160px; font-weight:600; font-size:14px;">${cat}</div>
+        <input type="text" value="${(savedMap[cat] || "").replace(/"/g, "&quot;")}" placeholder="Emoji or image URL" style="flex:1; min-width:160px;" />
+        <button class="save-btn" style="padding:8px 14px;">Save</button>
+      `;
+      const input = row.querySelector("input");
+      row.querySelector("button").addEventListener("click", () => saveCategoryIcon(cat, input.value.trim()));
+      list.appendChild(row);
+    });
+  }
+
+  async function saveCategoryIcon(category, icon) {
+    if (!icon) {
+      showCategoryIconMsg("Enter an emoji or image URL first.", true);
+      return;
+    }
+    const res = await fetch(`/api/admin/category-icons/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, icon }),
+    });
+    showCategoryIconMsg(res.ok ? `Saved icon for "${category}".` : "Could not save — try again.", !res.ok);
+  }
+
+  function showCategoryIconMsg(text, isError) {
+    const el = document.getElementById("categoryIconMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+
+  // ---------------- Category ads (table-order promo banner) ----------------
+  async function loadCategoryAdsAdmin(items) {
+    if (!currentLocation) return;
+    const categories = [...new Set(items.map((i) => i.category || "Menu"))];
+    const res = await fetch(`/api/admin/category-ads/${encodeURIComponent(currentLocation)}`);
+    const saved = res.ok ? await res.json() : [];
+    const savedMap = {};
+    saved.forEach((row) => (savedMap[row.category] = row));
+    renderCategoryAdList(categories, savedMap);
+  }
+
+  function renderCategoryAdList(categories, savedMap) {
+    const list = document.getElementById("categoryAdList");
+    if (!categories.length) {
+      list.innerHTML = '<div class="section-sub" style="margin:0;">Add menu items first — categories will show up here.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    categories.forEach((cat) => {
+      const saved = savedMap[cat] || {};
+      const template = saved.template || 3;
+      const features = (saved.features && saved.features.length) ? saved.features : [{}, {}, {}];
+      const row = document.createElement("div");
+      row.className = "category-ad-row";
+      const esc = (v) => (v || "").replace(/"/g, "&quot;");
+      const radioName = `tmpl-${cat.replace(/[^a-z0-9]/gi, "")}`;
+      row.innerHTML = `
+        <div class="cat-name">${cat}</div>
+        <div class="template-picker">
+          <label><input type="radio" name="${radioName}" value="1" ${template === 1 ? "checked" : ""} /> 1: Hero + Badges</label>
+          <label><input type="radio" name="${radioName}" value="2" ${template === 2 ? "checked" : ""} /> 2: Hero + Feature Icons</label>
+          <label><input type="radio" name="${radioName}" value="3" ${template === 3 ? "checked" : ""} /> 3: Side Card (default)</label>
+        </div>
+        <div class="ad-fields">
+          <input type="text" class="f-headline" value="${esc(saved.headline)}" placeholder="Headline (e.g. Hungry? / BBQ Bacon Burger)" />
+          <input type="text" class="f-highlight" value="${esc(saved.highlight)}" placeholder="Highlight line (e.g. We've got you.)" />
+          <textarea class="f-body" placeholder="Body text — used by templates 1 &amp; 3 (e.g. Try our new BBQ Bacon Burger — limited time!)">${saved.body || ""}</textarea>
+          <input type="text" class="f-image" value="${esc(saved.image_url)}" placeholder="Photo URL" />
+          <input type="text" class="f-btn-text" value="${esc(saved.button_text)}" placeholder="Button text (e.g. ORDER NOW)" />
+          <input type="text" class="f-btn-link" value="${esc(saved.button_link)}" placeholder="Button link (optional URL)" />
+          <input type="text" class="f-badge" value="${esc(saved.badge_text)}" placeholder="Badge (e.g. NEW!) — templates 1 &amp; 2" />
+          <input type="text" class="f-limited" value="${esc(saved.limited_text)}" placeholder="Circle badge (e.g. LIMITED TIME ONLY) — templates 1 &amp; 2" />
+        </div>
+        <div class="section-sub" style="margin:10px 0 6px;">Feature icons (template 2 only) — up to 3, e.g. 🔥 + "Flavor that hits in every bite."</div>
+        <div class="ad-fields">
+          <input type="text" class="f-feat-icon-0" value="${esc(features[0]?.icon)}" placeholder="Icon 1 (emoji)" style="flex:0 0 90px;" />
+          <input type="text" class="f-feat-text-0" value="${esc(features[0]?.text)}" placeholder="Feature 1 text" />
+          <input type="text" class="f-feat-icon-1" value="${esc(features[1]?.icon)}" placeholder="Icon 2 (emoji)" style="flex:0 0 90px;" />
+          <input type="text" class="f-feat-text-1" value="${esc(features[1]?.text)}" placeholder="Feature 2 text" />
+          <input type="text" class="f-feat-icon-2" value="${esc(features[2]?.icon)}" placeholder="Icon 3 (emoji)" style="flex:0 0 90px;" />
+          <input type="text" class="f-feat-text-2" value="${esc(features[2]?.text)}" placeholder="Feature 3 text" />
+        </div>
+        <div class="row-actions">
+          <button class="save-btn">Save</button>
+          <button class="del-btn">Clear</button>
+        </div>
+      `;
+      row.querySelector(".save-btn").addEventListener("click", () => saveCategoryAd(cat, row, radioName));
+      row.querySelector(".del-btn").addEventListener("click", () => deleteCategoryAd(cat));
+      list.appendChild(row);
+    });
+  }
+
+  async function saveCategoryAd(category, row, radioName) {
+    const templateInput = row.querySelector(`input[name="${radioName}"]:checked`);
+    const features = [0, 1, 2]
+      .map((i) => ({
+        icon: row.querySelector(`.f-feat-icon-${i}`).value.trim(),
+        text: row.querySelector(`.f-feat-text-${i}`).value.trim(),
+      }))
+      .filter((f) => f.icon || f.text);
+    const body = {
+      category,
+      headline: row.querySelector(".f-headline").value.trim() || null,
+      highlight: row.querySelector(".f-highlight").value.trim() || null,
+      body: row.querySelector(".f-body").value.trim() || null,
+      imageUrl: row.querySelector(".f-image").value.trim() || null,
+      buttonText: row.querySelector(".f-btn-text").value.trim() || null,
+      buttonLink: row.querySelector(".f-btn-link").value.trim() || null,
+      template: templateInput ? Number(templateInput.value) : 3,
+      badgeText: row.querySelector(".f-badge").value.trim() || null,
+      limitedText: row.querySelector(".f-limited").value.trim() || null,
+      features,
+    };
+    const res = await fetch(`/api/admin/category-ads/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    showCategoryAdMsg(res.ok ? `Saved banner for "${category}".` : "Could not save — try again.", !res.ok);
+  }
+
+  async function deleteCategoryAd(category) {
+    await fetch(`/api/admin/category-ads/${encodeURIComponent(currentLocation)}/${encodeURIComponent(category)}`, {
+      method: "DELETE",
+    });
+    showCategoryAdMsg(`Cleared banner for "${category}".`, false);
+    loadCategoryAdsAdmin(lastLoadedItems);
+  }
+
+  function showCategoryAdMsg(text, isError) {
+    const el = document.getElementById("categoryAdMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+
+  // ---------------- Table ordering: QR code ----------------
+  function renderTableQr() {
+    if (!currentLocation) return;
+    const url = `${location.origin}/table-order.html?location=${encodeURIComponent(currentLocation)}`;
+    document.getElementById("qrLinkText").value = url;
+    const container = document.getElementById("qrCodeContainer");
+    if (typeof qrcode !== "function") {
+      container.innerHTML = '<div class="section-sub" style="margin:0;">QR code library failed to load — use the link instead.</div>';
+      return;
+    }
+    const qr = qrcode(0, "M");
+    qr.addData(url);
+    qr.make();
+    container.innerHTML = qr.createImgTag(6, 8);
+  }
+
+  function copyQrLink() {
+    const input = document.getElementById("qrLinkText");
+    input.select();
+    navigator.clipboard && navigator.clipboard.writeText(input.value).catch(() => {});
+  }
+
+  // ---------------- Menu viewing (read-only): QR code ----------------
+  function renderMenuViewQr() {
+    if (!currentLocation) return;
+    const url = `${location.origin}/menu-view.html?location=${encodeURIComponent(currentLocation)}`;
+    document.getElementById("qrMenuViewLinkText").value = url;
+    const container = document.getElementById("qrMenuViewContainer");
+    if (typeof qrcode !== "function") {
+      container.innerHTML = '<div class="section-sub" style="margin:0;">QR code library failed to load — use the link instead.</div>';
+      return;
+    }
+    const qr = qrcode(0, "M");
+    qr.addData(url);
+    qr.make();
+    container.innerHTML = qr.createImgTag(6, 8);
+  }
+
+  function copyMenuViewLink() {
+    const input = document.getElementById("qrMenuViewLinkText");
+    input.select();
+    navigator.clipboard && navigator.clipboard.writeText(input.value).catch(() => {});
+  }
+
+  // ---------------- Table ordering: approved WiFi networks ----------------
+  async function loadNetworks() {
+    if (!currentLocation) return;
+    const res = await fetch(`/api/admin/location-networks/${encodeURIComponent(currentLocation)}`);
+    if (!res.ok) return;
+    renderNetworkList(await res.json());
+  }
+
+  function renderNetworkList(networks) {
+    const list = document.getElementById("networkList");
+    if (!networks.length) {
+      list.innerHTML = '<div class="section-sub" style="margin:0;">No networks registered yet — table ordering is currently open to anyone with the link.</div>';
+      return;
+    }
+    list.innerHTML = "";
+    networks.forEach((net) => {
+      const row = document.createElement("div");
+      row.className = "network-row";
+      row.innerHTML = `
+        <span class="ip">${net.ip}</span>
+        <span class="label">${net.label || ""}</span>
+        <button class="del-btn">Remove</button>
+      `;
+      row.querySelector(".del-btn").addEventListener("click", () => deleteNetwork(net.id));
+      list.appendChild(row);
+    });
+  }
+
+  async function registerCurrentNetwork() {
+    const res = await fetch(`/api/admin/location-networks/${encodeURIComponent(currentLocation)}/register-current`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "Registered from admin panel" }),
+    });
+    if (!res.ok) {
+      showNetworkMsg("Could not register — try again.", true);
+      return;
+    }
+    const saved = await res.json();
+    showNetworkMsg(`Registered ${saved.ip}. Make sure you were actually connected to the restaurant WiFi when you clicked this.`, false);
+    loadNetworks();
+  }
+
+  async function addNetworkManually() {
+    const ip = document.getElementById("fNetworkIp").value.trim();
+    const label = document.getElementById("fNetworkLabel").value.trim() || null;
+    if (!ip) {
+      showNetworkMsg("Enter an IP address first.", true);
+      return;
+    }
+    const res = await fetch(`/api/admin/location-networks/${encodeURIComponent(currentLocation)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ip, label }),
+    });
+    if (!res.ok) {
+      showNetworkMsg("Could not add — try again.", true);
+      return;
+    }
+    document.getElementById("fNetworkIp").value = "";
+    document.getElementById("fNetworkLabel").value = "";
+    showNetworkMsg("Network added.", false);
+    loadNetworks();
+  }
+
+  async function deleteNetwork(id) {
+    if (!confirm("Remove this network? Table ordering will stop working from it.")) return;
+    await fetch(`/api/admin/location-networks/item/${id}`, { method: "DELETE" });
+    loadNetworks();
+  }
+
+  function showNetworkMsg(text, isError) {
+    const el = document.getElementById("networkMsg");
+    el.textContent = text;
+    el.className = "msg " + (isError ? "error" : "ok");
+  }
+</script>
+</body>
+</html>
