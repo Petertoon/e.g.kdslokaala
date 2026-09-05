@@ -141,7 +141,9 @@ async function initDb() {
   `);
 
   // A promotional banner per category, per location — shown at the top of
-  // the table-order page and swapped out as the customer switches tabs.
+  // the table-order/togo/menu-view pages and swapped out as the customer
+  // switches tabs. Up to 5 "slots" per category (slot 0-4) so a category
+  // can rotate between multiple ads instead of showing just one every time.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS category_ads (
       location_id TEXT NOT NULL,
@@ -161,6 +163,28 @@ async function initDb() {
   await pool.query(`ALTER TABLE category_ads ADD COLUMN IF NOT EXISTS badge_text TEXT;`);
   await pool.query(`ALTER TABLE category_ads ADD COLUMN IF NOT EXISTS limited_text TEXT;`);
   await pool.query(`ALTER TABLE category_ads ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '[]';`);
+  // Added to support up to 5 rotating ads per category. The primary key
+  // widens from (location_id, category) to (location_id, category, slot) —
+  // this block only runs the migration once (checks if slot is already
+  // part of the key), so it's safe on every boot.
+  await pool.query(`ALTER TABLE category_ads ADD COLUMN IF NOT EXISTS slot INTEGER NOT NULL DEFAULT 0;`);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'category_ads_pkey' AND conrelid = 'category_ads'::regclass
+      ) THEN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_attribute a
+          JOIN pg_constraint c ON a.attnum = ANY(c.conkey) AND a.attrelid = c.conrelid
+          WHERE c.conname = 'category_ads_pkey' AND a.attname = 'slot'
+        ) THEN
+          ALTER TABLE category_ads DROP CONSTRAINT category_ads_pkey;
+          ALTER TABLE category_ads ADD CONSTRAINT category_ads_pkey PRIMARY KEY (location_id, category, slot);
+        END IF;
+      END IF;
+    END $$;
+  `);
 
   // Approved public IP addresses per location, used to restrict table
   // ordering to devices on the restaurant's own WiFi. A location with no
@@ -794,17 +818,22 @@ app.get("/api/category-translations/:locationId", requireDb, async (req, res) =>
   }
 });
 
-// ---- Public: per-category promo banner for the table-order page -----------
+// ---- Public: per-category promo banner(s) for table-order/togo/menu-view --
+// Returns up to 5 ads per category; the customer pages pick one at random
+// each time the banner renders, so a category with multiple ads rotates.
 app.get("/api/category-ads/:locationId", requireDb, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT category, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features
-       FROM category_ads WHERE location_id = $1`,
+       FROM category_ads WHERE location_id = $1 ORDER BY category, slot`,
       [req.params.locationId]
     );
     const map = {};
     rows.forEach((r) => {
-      map[r.category] = {
+      // Skip genuinely empty slots (a slot with no content configured yet).
+      if (!r.headline && !r.highlight && !r.body) return;
+      if (!map[r.category]) map[r.category] = [];
+      map[r.category].push({
         headline: r.headline,
         highlight: r.highlight,
         body: r.body,
@@ -815,7 +844,7 @@ app.get("/api/category-ads/:locationId", requireDb, async (req, res) => {
         badgeText: r.badge_text,
         limitedText: r.limited_text,
         features: r.features || [],
-      };
+      });
     });
     res.json(map);
   } catch (err) {
@@ -1029,18 +1058,20 @@ app.get("/api/admin/category-ads/:locationId", requireDb, requireAdmin, async (r
   res.json(rows);
 });
 
-// Upsert one category's banner. Called once per category row saved in the admin panel.
+// Upsert one category's banner ad, at a specific slot (0-4). Called once
+// per ad saved in the admin panel — a category can have up to 5.
 app.put("/api/admin/category-ads/:locationId", requireDb, requireAdmin, express.json(), async (req, res) => {
-  const { category, headline, highlight, body, imageUrl, buttonText, buttonLink, template, badgeText, limitedText, features } = req.body;
+  const { category, slot, headline, highlight, body, imageUrl, buttonText, buttonLink, template, badgeText, limitedText, features } = req.body;
   if (!category) return res.status(400).json({ error: "category is required" });
+  const slotNum = Math.min(4, Math.max(0, Number(slot) || 0));
   const { rows } = await pool.query(
-    `INSERT INTO category_ads (location_id, category, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-     ON CONFLICT (location_id, category) DO UPDATE SET
-       headline=$3, highlight=$4, body=$5, image_url=$6, button_text=$7, button_link=$8, template=$9, badge_text=$10, limited_text=$11, features=$12
+    `INSERT INTO category_ads (location_id, category, slot, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ON CONFLICT (location_id, category, slot) DO UPDATE SET
+       headline=$4, highlight=$5, body=$6, image_url=$7, button_text=$8, button_link=$9, template=$10, badge_text=$11, limited_text=$12, features=$13
      RETURNING *`,
     [
-      req.params.locationId, category, headline || null, highlight || null, body || null, imageUrl || null,
+      req.params.locationId, category, slotNum, headline || null, highlight || null, body || null, imageUrl || null,
       buttonText || null, buttonLink || null, Number(template) || 3, badgeText || null, limitedText || null,
       JSON.stringify(features || []),
     ]
@@ -1048,10 +1079,11 @@ app.put("/api/admin/category-ads/:locationId", requireDb, requireAdmin, express.
   res.json(rows[0]);
 });
 
-app.delete("/api/admin/category-ads/:locationId/:category", requireDb, requireAdmin, async (req, res) => {
-  await pool.query(`DELETE FROM category_ads WHERE location_id = $1 AND category = $2`, [
+app.delete("/api/admin/category-ads/:locationId/:category/:slot", requireDb, requireAdmin, async (req, res) => {
+  await pool.query(`DELETE FROM category_ads WHERE location_id = $1 AND category = $2 AND slot = $3`, [
     req.params.locationId,
     req.params.category,
+    Math.min(4, Math.max(0, Number(req.params.slot) || 0)),
   ]);
   res.json({ ok: true });
 });
