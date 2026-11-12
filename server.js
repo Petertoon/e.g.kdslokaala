@@ -152,6 +152,11 @@ async function initDb() {
   // the menu screen, and above the table-number entry on the start screens.
   // Blank/null just hides the strip — this is cosmetic, not required.
   await pool.query(`ALTER TABLE kiosk_settings ADD COLUMN IF NOT EXISTS restaurant_name TEXT;`);
+  // Small round logo/ad button shown in the header of table-order, to-go,
+  // and menu-view (links out to the restaurant's own Lokaal listing/ad page).
+  // Both blank/null just hides the button — cosmetic, not required.
+  await pool.query(`ALTER TABLE kiosk_settings ADD COLUMN IF NOT EXISTS ad_button_image_url TEXT;`);
+  await pool.query(`ALTER TABLE kiosk_settings ADD COLUMN IF NOT EXISTS ad_button_link_url TEXT;`);
 
   // Auto-translated category name (the tab label in the other language).
   // Filled in the first time a menu item in that category is saved;
@@ -983,13 +988,15 @@ app.get("/api/table-order-check/:locationId", requireDb, async (req, res) => {
   try {
     const [allowed, { rows: settingsRows }] = await Promise.all([
       isOnApprovedNetwork(req.params.locationId, getClientIp(req)),
-      pool.query(`SELECT ordering_enabled, primary_language, service_requests_enabled, restaurant_name FROM kiosk_settings WHERE location_id = $1`, [req.params.locationId]),
+      pool.query(`SELECT ordering_enabled, primary_language, service_requests_enabled, restaurant_name, ad_button_image_url, ad_button_link_url FROM kiosk_settings WHERE location_id = $1`, [req.params.locationId]),
     ]);
     const orderingEnabled = settingsRows[0] ? settingsRows[0].ordering_enabled !== false : true;
     const primaryLanguage = settingsRows[0]?.primary_language || "en";
     const serviceRequestsEnabled = settingsRows[0] ? settingsRows[0].service_requests_enabled !== false : true;
     const restaurantName = settingsRows[0]?.restaurant_name || "";
-    res.json({ allowed, orderingEnabled, primaryLanguage, serviceRequestsEnabled, restaurantName });
+    const adButtonImageUrl = settingsRows[0]?.ad_button_image_url || "";
+    const adButtonLinkUrl = settingsRows[0]?.ad_button_link_url || "";
+    res.json({ allowed, orderingEnabled, primaryLanguage, serviceRequestsEnabled, restaurantName, adButtonImageUrl, adButtonLinkUrl });
   } catch (err) {
     console.error("[table-order-check] failed:", err.message);
     res.status(500).json({ error: "Could not verify network" });
@@ -1120,13 +1127,15 @@ app.put("/api/admin/kiosk-settings/:locationId", requireDb, requireAdmin, expres
   const primaryLanguage = req.body.primaryLanguage !== undefined ? req.body.primaryLanguage : (existing.primary_language || "en");
   const serviceRequestsEnabled = req.body.serviceRequestsEnabled !== undefined ? !!req.body.serviceRequestsEnabled : (existing.service_requests_enabled !== false);
   const restaurantName = req.body.restaurantName !== undefined ? (req.body.restaurantName || "").trim() || null : (existing.restaurant_name || null);
+  const adButtonImageUrl = req.body.adButtonImageUrl !== undefined ? (req.body.adButtonImageUrl || "").trim() || null : (existing.ad_button_image_url || null);
+  const adButtonLinkUrl = req.body.adButtonLinkUrl !== undefined ? (req.body.adButtonLinkUrl || "").trim() || null : (existing.ad_button_link_url || null);
   const { rows } = await pool.query(
-    `INSERT INTO kiosk_settings (location_id, idle_timeout_seconds, ad_interval_seconds, header_button_image_url, header_button_link_url, ordering_enabled, primary_language, service_requests_enabled, restaurant_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `INSERT INTO kiosk_settings (location_id, idle_timeout_seconds, ad_interval_seconds, header_button_image_url, header_button_link_url, ordering_enabled, primary_language, service_requests_enabled, restaurant_name, ad_button_image_url, ad_button_link_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT (location_id) DO UPDATE SET
-       idle_timeout_seconds=$2, ad_interval_seconds=$3, header_button_image_url=$4, header_button_link_url=$5, ordering_enabled=$6, primary_language=$7, service_requests_enabled=$8, restaurant_name=$9
+       idle_timeout_seconds=$2, ad_interval_seconds=$3, header_button_image_url=$4, header_button_link_url=$5, ordering_enabled=$6, primary_language=$7, service_requests_enabled=$8, restaurant_name=$9, ad_button_image_url=$10, ad_button_link_url=$11
      RETURNING *`,
-    [req.params.locationId, idleTimeoutSeconds, adIntervalSeconds, headerButtonImageUrl, headerButtonLinkUrl, orderingEnabled, primaryLanguage, serviceRequestsEnabled, restaurantName]
+    [req.params.locationId, idleTimeoutSeconds, adIntervalSeconds, headerButtonImageUrl, headerButtonLinkUrl, orderingEnabled, primaryLanguage, serviceRequestsEnabled, restaurantName, adButtonImageUrl, adButtonLinkUrl]
   );
   res.json(rows[0]);
 });
