@@ -121,6 +121,18 @@
       <input type="text" id="fRestaurantName" placeholder="e.g. La Kaala Grill" onchange="saveRestaurantName()" style="padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; width:100%; max-width:320px;" />
       <div class="msg" id="restaurantNameMsg"></div>
     </div>
+
+    <div style="margin-top:18px; padding-top:16px; border-top:1px solid #eee;">
+      <label style="font-size:15px; font-weight:600; display:block; margin-bottom:6px;">Logo / Ad Button</label>
+      <div class="section-sub" style="margin-top:0;">
+        Optional. A small round button in the header of table-order, to-go, and menu-view that shows your logo and links out to one of your Lokaal pages. Leave the image blank to hide it.
+      </div>
+      <label style="font-size:12px; color:#666; display:block; margin-top:8px; margin-bottom:4px;">Logo image URL (square or round works best)</label>
+      <input type="text" id="fAdButtonImageUrl" placeholder="https://..." onchange="saveAdButton()" style="padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; width:100%; max-width:420px;" />
+      <label style="font-size:12px; color:#666; display:block; margin-top:10px; margin-bottom:4px;">Link URL (where the button goes when tapped)</label>
+      <input type="text" id="fAdButtonLinkUrl" placeholder="https://lokaalhub.com/..." onchange="saveAdButton()" style="padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; width:100%; max-width:420px;" />
+      <div class="msg" id="adButtonMsg"></div>
+    </div>
   </div>
 
   <table id="menuTable" style="display:none;">
@@ -554,6 +566,8 @@
     document.getElementById("fServiceRequestsEnabled").checked = s.service_requests_enabled !== false;
     document.getElementById("fPrimaryLanguage").value = s.primary_language || "en";
     document.getElementById("fRestaurantName").value = s.restaurant_name || "";
+    document.getElementById("fAdButtonImageUrl").value = s.ad_button_image_url || "";
+    document.getElementById("fAdButtonLinkUrl").value = s.ad_button_link_url || "";
     document.getElementById("orderingToggleBox").style.display = "block";
   }
 
@@ -662,6 +676,25 @@
     const el = document.getElementById("restaurantNameMsg");
     if (res.ok) {
       el.textContent = restaurantName ? "Saved." : "Cleared — strip hidden on customer pages.";
+      el.className = "msg ok";
+    } else {
+      el.textContent = "Could not save — try again.";
+      el.className = "msg error";
+    }
+  }
+
+  async function saveAdButton() {
+    if (!currentLocation) return;
+    const adButtonImageUrl = document.getElementById("fAdButtonImageUrl").value.trim();
+    const adButtonLinkUrl = document.getElementById("fAdButtonLinkUrl").value.trim();
+    const res = await fetch(`/api/admin/kiosk-settings/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adButtonImageUrl, adButtonLinkUrl }),
+    });
+    const el = document.getElementById("adButtonMsg");
+    if (res.ok) {
+      el.textContent = adButtonImageUrl ? "Saved." : "Cleared — button hidden on customer pages.";
       el.className = "msg ok";
     } else {
       el.textContent = "Could not save — try again.";
