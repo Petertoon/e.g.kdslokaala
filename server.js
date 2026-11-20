@@ -962,8 +962,8 @@ app.get("/api/category-ads/:locationId", requireDb, async (req, res) => {
     );
     const map = {};
     rows.forEach((r) => {
-      // Skip genuinely empty slots (a slot with no content configured yet).
-      if (!r.headline && !r.highlight && !r.body) return;
+      // Skip genuinely empty slots (no text and no picture, in either language).
+      if (!r.headline && !r.highlight && !r.body && !r.image_url && !(r.es && (r.es.headline || r.es.highlight || r.es.body || r.es.imageUrl))) return;
       if (!map[r.category]) map[r.category] = [];
       map[r.category].push({
         headline: r.headline,
