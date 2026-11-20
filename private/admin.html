@@ -67,6 +67,9 @@
   .ad-slot-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
   .ad-slot-tab { padding:6px 12px; font-size:12px; font-weight:600; border-radius:6px; border:1px solid #ccc; background:#f2f2f2; color:#444; cursor:pointer; }
   .ad-slot-tab.active { background:#1c2024; color:#fff; border-color:#1c2024; }
+  .ad-lang-tabs { display:flex; gap:6px; margin:10px 0; }
+  .ad-lang-tab { padding:6px 14px; font-size:12px; font-weight:600; border-radius:6px; border:1px solid #7CC24A; background:#fff; color:#3d7a1c; cursor:pointer; }
+  .ad-lang-tab.active { background:#7CC24A; color:#14171A; }
   .register-btn { background:#3B5BA5; color:#fff; border:none; border-radius:6px; padding:10px 16px; font-weight:600; font-size:13px; cursor:pointer; margin-right:8px; }
   .qr-box { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
   .qr-link-box { flex:1; min-width:240px; }
@@ -843,12 +846,44 @@
     row.querySelectorAll('.template-picker input[type="radio"]').forEach((r) => {
       r.checked = Number(r.value) === template;
     });
+    const es = saved.es || {};
+    row.querySelector(".es-headline").value = esc(es.headline);
+    row.querySelector(".es-highlight").value = esc(es.highlight);
+    row.querySelector(".es-body").value = esc(es.body);
+    row.querySelector(".es-image").value = esc(es.imageUrl);
+    row.querySelector(".es-btn-text").value = esc(es.buttonText);
+    row.querySelector(".es-btn-link").value = esc(es.buttonLink);
+    row.querySelector(".es-badge").value = esc(es.badgeText);
+    row.querySelector(".es-limited").value = esc(es.limitedText);
+    const esFeatures = es.features || [];
+    [0, 1, 2].forEach((i) => {
+      row.querySelector(`.es-feat-icon-${i}`).value = esFeatures[i]?.icon || "";
+      row.querySelector(`.es-feat-text-${i}`).value = esFeatures[i]?.text || "";
+    });
+  }
+
+  function collectEsAd(row) {
+    const v = (sel) => row.querySelector(sel).value.trim();
+    return {
+      headline: v(".es-headline"),
+      highlight: v(".es-highlight"),
+      body: v(".es-body"),
+      imageUrl: v(".es-image"),
+      buttonText: v(".es-btn-text"),
+      buttonLink: v(".es-btn-link"),
+      badgeText: v(".es-badge"),
+      limitedText: v(".es-limited"),
+      features: [0, 1, 2]
+        .map((i) => ({ icon: v(`.es-feat-icon-${i}`), text: v(`.es-feat-text-${i}`) }))
+        .filter((f) => f.icon || f.text),
+    };
   }
 
   function slotTabLabel(i, slots) {
     const s = slots[i];
     const filled = s && (s.headline || s.highlight || s.body || s.image_url);
-    return `Ad ${i + 1}${filled ? " ●" : ""}`;
+    const hasEs = s && s.es && (s.es.headline || s.es.highlight || s.es.body || s.es.imageUrl || s.es.buttonText);
+    return `Ad ${i + 1}${filled ? " ●" : ""}${hasEs ? " ES" : ""}`;
   }
 
   function renderCategoryAdList(categories, savedMap) {
@@ -875,6 +910,11 @@
           <label><input type="radio" name="${radioName}" value="2" /> 2: Hero + Feature Icons</label>
           <label><input type="radio" name="${radioName}" value="3" /> 3: Side Card (default)</label>
         </div>
+        <div class="ad-lang-tabs">
+          <button type="button" class="ad-lang-tab active" data-lang="en">English ad</button>
+          <button type="button" class="ad-lang-tab" data-lang="es">Spanish ad</button>
+        </div>
+        <div class="ad-lang-pane" data-lang="en">
         <div class="ad-fields">
           <input type="text" class="f-headline" placeholder="Headline (e.g. Hungry? / BBQ Bacon Burger)" />
           <input type="text" class="f-highlight" placeholder="Highlight line (e.g. We've got you.)" />
@@ -894,6 +934,29 @@
           <input type="text" class="f-feat-icon-2" placeholder="Icon 3 (emoji)" style="flex:0 0 90px;" />
           <input type="text" class="f-feat-text-2" placeholder="Feature 3 text" />
         </div>
+        </div>
+        <div class="ad-lang-pane" data-lang="es" style="display:none;">
+        <div class="section-sub" style="margin:0 0 8px;">Shown instead of the English ad when the customer taps Español. Any field you leave blank here falls back to the English ad's version, so leave everything blank to keep showing the English ad. The template, layout and badge style are shared with the English ad.</div>
+        <div class="ad-fields">
+          <input type="text" class="es-headline" placeholder="Titular (Spanish headline)" />
+          <input type="text" class="es-highlight" placeholder="Línea destacada (Spanish highlight line)" />
+          <textarea class="es-body" placeholder="Texto (Spanish body text)"></textarea>
+          <input type="text" class="es-image" placeholder="Spanish photo URL (e.g. image with Spanish text) — optional" />
+          <input type="text" class="es-btn-text" placeholder="Texto del botón (e.g. ORDENA AHORA)" />
+          <input type="text" class="es-btn-link" placeholder="Button link (optional — uses the English link if blank)" />
+          <input type="text" class="es-badge" placeholder="Insignia (e.g. ¡NUEVO!) — templates 1 &amp; 2" />
+          <input type="text" class="es-limited" placeholder="Insignia circular (e.g. TIEMPO LIMITADO) — templates 1 &amp; 2" />
+        </div>
+        <div class="section-sub" style="margin:10px 0 6px;">Spanish feature icons (template 2 only) — up to 3</div>
+        <div class="ad-fields">
+          <input type="text" class="es-feat-icon-0" placeholder="Icon 1 (emoji)" style="flex:0 0 90px;" />
+          <input type="text" class="es-feat-text-0" placeholder="Feature 1 text" />
+          <input type="text" class="es-feat-icon-1" placeholder="Icon 2 (emoji)" style="flex:0 0 90px;" />
+          <input type="text" class="es-feat-text-1" placeholder="Feature 2 text" />
+          <input type="text" class="es-feat-icon-2" placeholder="Icon 3 (emoji)" style="flex:0 0 90px;" />
+          <input type="text" class="es-feat-text-2" placeholder="Feature 3 text" />
+        </div>
+        </div>
         <div class="row-actions">
           <button class="save-btn">Save This Ad</button>
           <button class="del-btn">Clear This Ad</button>
@@ -906,6 +969,15 @@
           tab.classList.add("active");
           row.dataset.activeSlot = tab.dataset.slot;
           fillAdSlotFields(row, row._slots[tab.dataset.slot] || {});
+        });
+      });
+
+      row.querySelectorAll(".ad-lang-tab").forEach((lt) => {
+        lt.addEventListener("click", () => {
+          row.querySelectorAll(".ad-lang-tab").forEach((x) => x.classList.toggle("active", x === lt));
+          row.querySelectorAll(".ad-lang-pane").forEach((p) => {
+            p.style.display = p.dataset.lang === lt.dataset.lang ? "" : "none";
+          });
         });
       });
 
@@ -938,6 +1010,7 @@
       badgeText: row.querySelector(".f-badge").value.trim() || null,
       limitedText: row.querySelector(".f-limited").value.trim() || null,
       features,
+      es: collectEsAd(row),
     };
     const res = await fetch(`/api/admin/category-ads/${encodeURIComponent(currentLocation)}`, {
       method: "PUT",
