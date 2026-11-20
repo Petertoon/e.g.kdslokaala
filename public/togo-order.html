@@ -398,7 +398,7 @@
       emptyCart: "Your cart is empty.", noItems: "No menu items yet for this location.", remove: "✕ Remove",
       couldNotLoad: "Could not load the menu. Please tell staff.", orderFailed: "Sorry, something went wrong. Please tell staff.",
       confirmMsg: "Order sent to the kitchen!", confirmSub: (phone) => `We'll text or call ${phone} when it's ready. Please pay when you pick up.`,
-      langButton: "Español",
+      langButton: "Español", swipeHint: "Swipe up for menu",
     },
     es: {
       pageTitle: "Pedido Para Llevar", viewOnlyBadge: "Explora nuestro menú — ordena en la ventanilla",
@@ -407,7 +407,7 @@
       emptyCart: "Tu carrito está vacío.", noItems: "Aún no hay artículos en el menú para esta ubicación.", remove: "✕ Quitar",
       couldNotLoad: "No se pudo cargar el menú. Por favor avisa al personal.", orderFailed: "Lo sentimos, algo salió mal. Por favor avisa al personal.",
       confirmMsg: "¡Pedido enviado a la cocina!", confirmSub: (phone) => `Te enviaremos un mensaje o te llamaremos al ${phone} cuando esté listo. Por favor paga al recogerlo.`,
-      langButton: "English",
+      langButton: "English", swipeHint: "Desliza hacia arriba para ver el menú",
     },
   };
   function t(key) { return (UI_STRINGS[currentLang] || UI_STRINGS.en)[key]; }
@@ -415,6 +415,9 @@
   function toggleLanguage() {
     currentLang = currentLang === "en" ? "es" : "en";
     applyLanguageUI();
+    // Re-show the same ad in the new language (only if it is still on screen)
+    const adEl = document.getElementById("adBanner");
+    if (adEl && adEl.style.display !== "none" && currentAd) renderAdBanner(true);
     renderTabs();
     renderMenu();
     renderCartLines();
@@ -566,12 +569,35 @@
     return (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  function renderAdBanner() {
+  let currentAd = null;
+
+  // Spanish version of an ad: any blank Spanish field falls back to the English one
+  function localizedAd(base) {
+    if (!base || currentLang !== "es" || !base.es) return base;
+    const es = base.es;
+    const pick = (a, b) => (a && String(a).trim()) ? a : b;
+    return Object.assign({}, base, {
+      headline: pick(es.headline, base.headline),
+      highlight: pick(es.highlight, base.highlight),
+      body: pick(es.body, base.body),
+      imageUrl: pick(es.imageUrl, base.imageUrl),
+      buttonText: pick(es.buttonText, base.buttonText),
+      buttonLink: pick(es.buttonLink, base.buttonLink),
+      badgeText: pick(es.badgeText, base.badgeText),
+      limitedText: pick(es.limitedText, base.limitedText),
+      features: (es.features && es.features.length) ? es.features : base.features,
+    });
+  }
+
+  function renderAdBanner(keepCurrent) {
     const banner = document.getElementById("adBanner");
     const ads = categoryAds[activeCategory];
     // Pick one at random each time the banner renders, so a category with
     // multiple ads configured rotates between them across views/tab switches.
-    const ad = (ads && ads.length) ? ads[Math.floor(Math.random() * ads.length)] : null;
+    // On a language switch (keepCurrent) the same ad stays up, just translated.
+    let baseAd = (keepCurrent && currentAd) ? currentAd : ((ads && ads.length) ? ads[Math.floor(Math.random() * ads.length)] : null);
+    currentAd = baseAd;
+    const ad = localizedAd(baseAd);
     if (!ad || dismissedAdCategories.has(activeCategory) || (!ad.headline && !ad.highlight && !ad.body)) {
       banner.style.display = "none";
       banner.innerHTML = "";
@@ -643,7 +669,7 @@
         </div>`;
     }
 
-    const swipeHint = `<div class="ad-swipe-hint"><span class="chevron">⌃</span>Swipe up for menu</div>`;
+    const swipeHint = `<div class="ad-swipe-hint"><span class="chevron">⌃</span>${escapeHtml(t("swipeHint"))}</div>`;
 
     banner.className = "ad-wrap";
     banner.innerHTML = html + swipeHint;
