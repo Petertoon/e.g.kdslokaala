@@ -209,6 +209,11 @@ async function initDb() {
   // this block only runs the migration once (checks if slot is already
   // part of the key), so it's safe on every boot.
   await pool.query(`ALTER TABLE category_ads ADD COLUMN IF NOT EXISTS slot INTEGER NOT NULL DEFAULT 0;`);
+  // Optional Spanish version of each ad slot (headline, highlight, body,
+  // image, button, badges, feature icons), shown instead of the English ad
+  // when the customer switches the page to Español. Stored as one JSON blob
+  // so the ad table doesn't need a dozen more columns. NULL = no Spanish ad.
+  await pool.query(`ALTER TABLE category_ads ADD COLUMN IF NOT EXISTS es JSONB;`);
   await pool.query(`
     DO $$
     BEGIN
@@ -951,7 +956,7 @@ app.get("/api/category-translations/:locationId", requireDb, async (req, res) =>
 app.get("/api/category-ads/:locationId", requireDb, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT category, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features
+      `SELECT category, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features, es
        FROM category_ads WHERE location_id = $1 ORDER BY category, slot`,
       [req.params.locationId]
     );
@@ -971,6 +976,7 @@ app.get("/api/category-ads/:locationId", requireDb, async (req, res) => {
         badgeText: r.badge_text,
         limitedText: r.limited_text,
         features: r.features || [],
+        es: r.es || null,
       });
     });
     res.json(map);
@@ -1199,16 +1205,38 @@ app.put("/api/admin/category-ads/:locationId", requireDb, requireAdmin, express.
   const { category, slot, headline, highlight, body, imageUrl, buttonText, buttonLink, template, badgeText, limitedText, features } = req.body;
   if (!category) return res.status(400).json({ error: "category is required" });
   const slotNum = Math.min(4, Math.max(0, Number(slot) || 0));
+
+  // Spanish version of this ad (optional). Keep only known keys, trimmed, and
+  // store NULL when every field is blank so "no Spanish ad" stays unambiguous.
+  const str = (v) => (typeof v === "string" ? v.trim() : "");
+  const esIn = req.body.es && typeof req.body.es === "object" ? req.body.es : {};
+  const esClean = {
+    headline: str(esIn.headline),
+    highlight: str(esIn.highlight),
+    body: str(esIn.body),
+    imageUrl: str(esIn.imageUrl),
+    buttonText: str(esIn.buttonText),
+    buttonLink: str(esIn.buttonLink),
+    badgeText: str(esIn.badgeText),
+    limitedText: str(esIn.limitedText),
+    features: (Array.isArray(esIn.features) ? esIn.features : [])
+      .slice(0, 3)
+      .map((f) => ({ icon: str(f && f.icon), text: str(f && f.text) }))
+      .filter((f) => f.icon || f.text),
+  };
+  const esHasContent = Object.values(esClean).some((v) => (Array.isArray(v) ? v.length : v));
+
   const { rows } = await pool.query(
-    `INSERT INTO category_ads (location_id, category, slot, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+    `INSERT INTO category_ads (location_id, category, slot, headline, highlight, body, image_url, button_text, button_link, template, badge_text, limited_text, features, es)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (location_id, category, slot) DO UPDATE SET
-       headline=$4, highlight=$5, body=$6, image_url=$7, button_text=$8, button_link=$9, template=$10, badge_text=$11, limited_text=$12, features=$13
+       headline=$4, highlight=$5, body=$6, image_url=$7, button_text=$8, button_link=$9, template=$10, badge_text=$11, limited_text=$12, features=$13, es=$14
      RETURNING *`,
     [
       req.params.locationId, category, slotNum, headline || null, highlight || null, body || null, imageUrl || null,
       buttonText || null, buttonLink || null, Number(template) || 3, badgeText || null, limitedText || null,
       JSON.stringify(features || []),
+      esHasContent ? JSON.stringify(esClean) : null,
     ]
   );
   res.json(rows[0]);
