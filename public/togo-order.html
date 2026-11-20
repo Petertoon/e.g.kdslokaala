@@ -73,6 +73,9 @@
 
   /* Template 3: side card — photo bleeding in from the right, text on the left */
   .ad-t3 { position: relative; min-height: 190px; }
+  .ad-dots { position: absolute; bottom: 10px; left: 12px; display: flex; gap: 5px; z-index: 2; pointer-events: none; }
+  .ad-dots span { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.45); }
+  .ad-dots span.on { background: #7CC24A; }
   .ad-img-only { position: relative; line-height: 0; }
   .ad-img-only img { width: 100%; max-height: 260px; object-fit: cover; display: block; }
   .ad-t3 .ad-image { position: absolute; inset: 0; background-size: cover; background-position: center; }
@@ -496,6 +499,8 @@
       currentLang = primaryLanguage;
       applyRestaurantName(data.restaurantName || "");
       applyAdButton(data.adButtonImageUrl || "", data.adButtonLinkUrl || "");
+      adRotateSeconds = (data.adRotateSeconds === undefined || data.adRotateSeconds === null) ? 4 : Number(data.adRotateSeconds) || 0;
+      adOrderMode = data.adOrderMode === "sequential" ? "sequential" : "random";
       if (!data.allowed) {
         document.getElementById("blockedScreen").style.display = "flex";
       } else if (orderingEnabled) {
@@ -572,6 +577,45 @@
   }
 
   let currentAd = null;
+  let adRotateSeconds = 4;   // set from the admin panel; 0 = no rotation
+  let adRotateTimer = null;
+  let adOrderMode = "random";   // 'sequential' = next ad each visit (when rotation is 0)
+  const visitAdPick = {};       // category -> ad index already chosen during this page load
+
+  // Next ad in order, remembered on this phone between visits
+  function nextVisitIndex(cat, count) {
+    if (visitAdPick[cat] !== undefined && visitAdPick[cat] < count) return visitAdPick[cat];
+    const key = "adSeq:" + (typeof locationId !== "undefined" ? locationId : "") + ":" + cat;
+    let last = -1;
+    try { last = Number(localStorage.getItem(key)); if (!Number.isFinite(last)) last = -1; } catch (e) {}
+    const idx = (last + 1) % count;
+    try { localStorage.setItem(key, String(idx)); } catch (e) {}
+    visitAdPick[cat] = idx;
+    return idx;
+  }
+  let adIndex = 0;
+
+  function stopAdRotation() {
+    if (adRotateTimer) { clearInterval(adRotateTimer); adRotateTimer = null; }
+  }
+
+  // Ads that actually have something to show (text or a picture)
+  function usableAds(cat) {
+    return (categoryAds[cat] || []).filter((a) => a && (a.headline || a.highlight || a.body || a.imageUrl));
+  }
+
+  function startAdRotation() {
+    stopAdRotation();
+    const cat = activeCategory;
+    if (!(adRotateSeconds > 0) || usableAds(cat).length < 2) return;
+    adRotateTimer = setInterval(() => {
+      const list = usableAds(cat);
+      const el = document.getElementById("adBanner");
+      if (cat !== activeCategory || !el || el.style.display === "none" || list.length < 2) return;
+      adIndex = (adIndex + 1) % list.length;
+      renderAdBanner(false, adIndex, true);
+    }, adRotateSeconds * 1000);
+  }
 
   // Spanish version of an ad: any blank Spanish field falls back to the English one
   function localizedAd(base) {
@@ -591,16 +635,29 @@
     });
   }
 
-  function renderAdBanner(keepCurrent) {
+  function renderAdBanner(keepCurrent, forceIndex, fromTimer) {
     const banner = document.getElementById("adBanner");
-    const ads = categoryAds[activeCategory];
+    const ads = usableAds(activeCategory);
     // Pick one at random each time the banner renders, so a category with
     // multiple ads configured rotates between them across views/tab switches.
     // On a language switch (keepCurrent) the same ad stays up, just translated.
-    let baseAd = (keepCurrent && currentAd) ? currentAd : ((ads && ads.length) ? ads[Math.floor(Math.random() * ads.length)] : null);
+    let baseAd;
+    if (keepCurrent && currentAd) {
+      baseAd = currentAd;
+    } else if (forceIndex !== undefined && ads[forceIndex]) {
+      baseAd = ads[forceIndex];
+    } else if (ads.length && adRotateSeconds > 0) {
+      adIndex = 0;                       // rotation starts at Ad 1 each time a category is opened
+      baseAd = ads[0];
+    } else if (ads.length && adOrderMode === "sequential") {
+      baseAd = ads[nextVisitIndex(activeCategory, ads.length)];
+    } else {
+      baseAd = ads.length ? ads[Math.floor(Math.random() * ads.length)] : null;
+    }
     currentAd = baseAd;
     const ad = localizedAd(baseAd);
     if (!ad || dismissedAdCategories.has(activeCategory) || (!ad.headline && !ad.highlight && !ad.body && !ad.imageUrl)) {
+      stopAdRotation();
       banner.style.display = "none";
       banner.innerHTML = "";
       return;
@@ -682,13 +739,18 @@
     const swipeHint = `<div class="ad-swipe-hint"><span class="chevron">⌃</span>${escapeHtml(t("swipeHint"))}</div>`;
 
     banner.className = "ad-wrap";
-    banner.innerHTML = html + swipeHint;
+    const dotsHtml = (ads.length > 1 && adRotateSeconds > 0)
+      ? `<div class="ad-dots">${ads.map((_, i) => `<span class="${i === adIndex ? "on" : ""}"></span>`).join("")}</div>`
+      : "";
+    banner.innerHTML = html + dotsHtml + swipeHint;
     banner.style.display = "block";
     banner.style.transform = "";
     banner.style.opacity = "";
+    if (!fromTimer && !keepCurrent) startAdRotation();
   }
 
   function dismissAd() {
+    stopAdRotation();
     dismissedAdCategories.add(activeCategory);
     document.getElementById("adBanner").style.display = "none";
   }
