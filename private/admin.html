@@ -203,7 +203,22 @@
 
   <div class="form-box">
     <div class="section-title" style="margin-top:0;">Category Ads (Promo Banner)</div>
-    <div class="section-sub">A promotional banner shown at the top of the table-order, To-Go, and menu-view pages — swaps per category. Up to 5 ads per category; if more than one is filled in, a random one shows each time the menu is viewed.</div>
+    <div class="section-sub">A promotional banner shown at the top of the table-order, To-Go, and menu-view pages — swaps per category. Up to 5 ads per category; if more than one is filled in, they rotate automatically (set the timing below).</div>
+    <div class="settings-row" style="margin-bottom:16px;">
+      <div class="field">
+        <label for="fAdRotateSeconds">Rotate ads every (seconds)</label>
+        <input type="number" id="fAdRotateSeconds" min="0" max="60" value="4" onchange="saveAdRotate()" />
+      </div>
+      <div class="field">
+        <label for="fAdOrderMode">When rotation is 0 (off)</label>
+        <select id="fAdOrderMode" onchange="saveAdRotate()" style="padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px;">
+          <option value="random">Show a random ad</option>
+          <option value="sequential">Show the next ad each visit</option>
+        </select>
+      </div>
+      <div class="section-sub" style="margin:0 0 8px;">Ad 1, then Ad 2, then Ad 3 and so on, round and round. Enter 0 to turn rotation off. "Next ad each visit" is remembered on each customer's own phone.</div>
+      <div class="msg" id="adRotateMsg"></div>
+    </div>
     <div id="categoryAdList"></div>
     <div class="msg" id="categoryAdMsg"></div>
   </div>
@@ -576,6 +591,8 @@
     document.getElementById("fRestaurantName").value = s.restaurant_name || "";
     document.getElementById("fAdButtonImageUrl").value = s.ad_button_image_url || "";
     document.getElementById("fAdButtonLinkUrl").value = s.ad_button_link_url || "";
+    document.getElementById("fAdRotateSeconds").value = s.ad_rotate_seconds == null ? 4 : s.ad_rotate_seconds;
+    document.getElementById("fAdOrderMode").value = s.ad_order_mode === "sequential" ? "sequential" : "random";
     document.getElementById("orderingToggleBox").style.display = "block";
   }
 
@@ -689,6 +706,22 @@
       el.textContent = "Could not save — try again.";
       el.className = "msg error";
     }
+  }
+
+  async function saveAdRotate() {
+    if (!currentLocation) return;
+    let n = Math.round(Number(document.getElementById("fAdRotateSeconds").value));
+    if (!(n >= 0)) n = 4;
+    n = Math.min(60, n);
+    document.getElementById("fAdRotateSeconds").value = n;
+    const res = await fetch(`/api/admin/kiosk-settings/${encodeURIComponent(currentLocation)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adRotateSeconds: n, adOrderMode: document.getElementById("fAdOrderMode").value }),
+    });
+    const el = document.getElementById("adRotateMsg");
+    el.textContent = res.ok ? (n ? `Saved — ads rotate every ${n} seconds.` : "Saved — rotation off.") : "Could not save — try again.";
+    el.className = "msg " + (res.ok ? "ok" : "error");
   }
 
   async function saveAdButton() {
