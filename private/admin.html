@@ -33,6 +33,11 @@
   .msg { font-size:13px; margin-top:8px; }
   .msg.error { color:#C4462B; }
   .msg.ok { color:#5B8C5A; }
+  .box-colors { display:flex; align-items:center; gap:6px; margin:0 0 10px; font-size:11px; color:#888; }
+  .box-colors .sw { width:18px; height:18px; border-radius:50%; border:1px solid #bbb; cursor:pointer; padding:0; }
+  .box-colors .sw.on { outline:2px solid #3B5BA5; outline-offset:1px; }
+  .box-colors input[type="color"] { width:24px; height:20px; border:none; padding:0; background:none; cursor:pointer; }
+  .box-colors .reset { background:none; border:none; color:#3B5BA5; cursor:pointer; font-size:11px; padding:0 4px; }
   .section-title { font-size:18px; margin-top:36px; margin-bottom:6px; }
   .section-sub { color:#666; font-size:13px; margin-bottom:14px; }
   .ad-list { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
@@ -1186,6 +1191,39 @@
     el.textContent = text;
     el.className = "msg " + (isError ? "error" : "ok");
   }
+
+  // ---------- Box background colors (per section, saved in this browser) ----------
+  (function initBoxColors() {
+    const PRESETS = [["White", "#ffffff"], ["Tan", "#f3e9d6"], ["Light brown", "#e3cfb4"], ["Sand", "#faf5ea"], ["Sage", "#e6efe0"], ["Sky", "#e3edf7"], ["Blush", "#f7e6e6"]];
+    const store = (fn) => { try { return fn(); } catch (e) { return null; } };
+    const saved = store(() => JSON.parse(localStorage.getItem("adminBoxColors") || "{}")) || {};
+    const persist = () => store(() => localStorage.setItem("adminBoxColors", JSON.stringify(saved)));
+    document.querySelectorAll(".form-box").forEach((box, idx) => {
+      const titleEl = box.querySelector(".section-title, h2");
+      if (!titleEl) return;
+      const key = (box.id || titleEl.textContent.trim() || "box" + idx).slice(0, 60);
+      const bar = document.createElement("div");
+      bar.className = "box-colors";
+      bar.innerHTML = "<span>Box color:</span>";
+      const apply = (c) => { box.style.background = c || ""; bar.querySelectorAll(".sw").forEach((b) => b.classList.toggle("on", b.dataset.c === (c || "#ffffff"))); };
+      PRESETS.forEach(([name, c]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "sw"; b.title = name; b.dataset.c = c; b.style.background = c;
+        b.addEventListener("click", () => { saved[key] = c; persist(); apply(c); });
+        bar.appendChild(b);
+      });
+      const pick = document.createElement("input");
+      pick.type = "color"; pick.title = "Custom color"; pick.value = saved[key] || "#ffffff";
+      pick.addEventListener("input", () => { saved[key] = pick.value; persist(); apply(pick.value); });
+      bar.appendChild(pick);
+      const reset = document.createElement("button");
+      reset.type = "button"; reset.className = "reset"; reset.textContent = "reset";
+      reset.addEventListener("click", () => { delete saved[key]; persist(); apply(""); });
+      bar.appendChild(reset);
+      titleEl.insertAdjacentElement("afterend", bar);
+      if (saved[key]) apply(saved[key]);
+    });
+  })();
 </script>
 </body>
 </html>
